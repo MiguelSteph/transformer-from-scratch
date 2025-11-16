@@ -22,7 +22,7 @@ def get_configs():
     config.batch_size = 64
     config.base_lr = 0.0001
     config.warmup_epochs = 2
-    config.training_epochs = 10 
+    config.training_epochs = 18 
     config.steps_per_epochs = int(config.train_size / config.batch_size)
     config.val_steps = int(config.val_size / config.batch_size)
     config.test_steps = int(config.test_size / config.batch_size)
