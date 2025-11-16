@@ -2,7 +2,7 @@ import optax
 import jax
 from jax import numpy as jnp
 from flax.training import train_state
-
+from models import TransformerModule
 
 class TrainState(train_state.TrainState):
     dropout_key: jax.Array
@@ -80,12 +80,10 @@ def create_train_state(config, param_init_prng_key, dropout_key):
     # Create the model
     model = create_model(config)
     
-    key_1, key_2, key_3, key_4, key_5 = jax.random.split(param_init_prng_key, 5)
-    sample_enc_mask = jax.random.choice(key_1, 2, (1, config.max_src_len))
-    sample_dec_mask = jax.random.choice(key_2, 2, (1, config.max_trg_len))
-    sample_enc_x = jax.random.choice(key_3, config.max_vocab_size, (1, config.max_src_len))
-    sample_dec_x = jax.random.choice(key_4, config.max_vocab_size, (1, config.max_trg_len))
-    variables = model.init(key_5, sample_enc_x, sample_dec_x)
+    key_1, key_2, key_3 = jax.random.split(param_init_prng_key, 3)
+    sample_enc_x = jax.random.choice(key_1, config.max_vocab_size, (1, config.max_src_len))
+    sample_dec_x = jax.random.choice(key_2, config.max_vocab_size, (1, config.max_trg_len))
+    variables = model.init(key_3, sample_enc_x, sample_dec_x)
     params = variables['params']
 
     # Create the optimizer
@@ -117,3 +115,34 @@ def create_model(config):
                              config.emb_dim, config.dropout, 
                              config.num_heads, config.d_proj, 
                              config.max_vocab_size, config.max_trg_len)
+
+
+def run_inference(src_sentence, config, model, params, src_tokenizer, trg_tokenizer):
+    src_pad_encoding = src_tokenizer.encode('<|pad|>').ids[0]
+    trg_pad_encoding = trg_tokenizer.encode('<|pad|>').ids[0]
+    end_token_id = trg_tokenizer.encode('<|endoftext|>').ids[0]
+    
+    src_tokens = src_tokenizer.encode(src_sentence).ids
+    src_tokens = jnp.concatenate([jnp.array(src_tokens), jnp.full(config.max_src_len - len(src_tokens), src_pad_encoding)])
+    src_padding_mask = (src_tokens != src_pad_encoding).astype(jnp.int32)
+
+    trg_tokens = jnp.array(trg_tokenizer.encode('<|startoftext|>').ids)
+    for idx in range(config.max_trg_len):
+        trg_input_tokens = jnp.concatenate([trg_tokens, jnp.full(config.max_trg_len - trg_tokens.shape[0], trg_pad_encoding)])
+        trg_padding_mask = (trg_input_tokens != trg_pad_encoding).astype(jnp.int32)
+
+        model_output = model.apply({'params': params}, 
+                                   enc_x=jnp.expand_dims(src_tokens, 0),
+                                   dec_x=jnp.expand_dims(trg_input_tokens, 0),
+                                   enc_mask=jnp.expand_dims(src_padding_mask, 0),
+                                   dec_mask=jnp.expand_dims(trg_padding_mask, 0),
+                                   training=False)
+        token_logits = model_output[0][trg_tokens.shape[0]-1]
+        output_token = jnp.argmax(token_logits)
+        if output_token == end_token_id:
+            break
+        trg_tokens = jnp.concatenate([trg_tokens, jnp.array([output_token])])
+
+    output_str = trg_tokenizer.decode(trg_tokens)
+    return output_str
+
