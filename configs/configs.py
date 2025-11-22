@@ -4,7 +4,7 @@ import ml_collections
 def get_configs():
     config = ml_collections.ConfigDict()
 
-    config.emb_dim = 128 # TBD
+    config.emb_dim = 128
     config.num_heads = 8
     config.d_proj = 128
     config.ff_d_inner = 2 * config.emb_dim
