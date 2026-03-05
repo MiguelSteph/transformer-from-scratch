@@ -2,6 +2,7 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 from configs import get_configs
 from tokenizer import build_and_save_tokenizer
+import time
 
 def download_and_get_raw_datasets() -> list[tf.data.Dataset]:
     tfds_config = tfds.translate.wmt.WmtConfig(
