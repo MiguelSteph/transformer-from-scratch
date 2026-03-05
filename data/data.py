@@ -47,6 +47,7 @@ def build_and_save_tokenizer_models() -> None:
     en_data = full_ds.map(lambda x: x["en"], num_parallel_calls=tf.data.AUTOTUNE)
 
     # German tokenizer
+    print(config.data.special_tokens)
     print(f"--- Starting German tokenizer ---")
     build_and_save_tokenizer(dataset=de_data,
                             vocab_size=config.data.vocab_size,
