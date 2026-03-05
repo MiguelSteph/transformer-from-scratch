@@ -1,4 +1,3 @@
-import pathlib
 import ml_collections
 
 def get_configs():
@@ -49,13 +48,5 @@ def get_configs():
     config.model = model_config
     config.optimizer = optimizer_config
     config.training_output = training_output_config
-
-    # Create the path if it does not exist.
-    pathlib.Path(config.data.de_tokenizer_model_path).mkdir(exist_ok=True)
-    pathlib.Path(config.data.en_tokenizer_model_path).mkdir(exist_ok=True)
-    pathlib.Path(config.training_output.metric_path).mkdir(exist_ok=True)
-    pathlib.Path(config.training_output.checkpoint_path).mkdir(exist_ok=True)
-    pathlib.Path(config.training_output.trace_path).mkdir(exist_ok=True)
-    pathlib.Path('proprocessed_data').mkdir(exist_ok=True)
     
     return ml_collections.FrozenConfigDict(config)
