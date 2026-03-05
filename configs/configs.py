@@ -58,4 +58,4 @@ def get_configs():
     pathlib.Path(config.training_output.trace_path).mkdir(exist_ok=True)
     pathlib.Path('proprocessed_data').mkdir(exist_ok=True)
     
-    return return ml_collections.FrozenConfigDict(config)
+    return ml_collections.FrozenConfigDict(config)
