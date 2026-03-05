@@ -40,6 +40,7 @@ def download_and_get_raw_datasets() -> list[tf.data.Dataset]:
 
 
 def build_and_save_tokenizer_models() -> None:
+    import time
     config = get_configs()
     train_ds, validation_ds, test_ds = download_and_get_raw_datasets()
     full_ds = train_ds.concatenate(validation_ds).concatenate(test_ds)
