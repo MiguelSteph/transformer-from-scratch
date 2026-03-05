@@ -1,7 +1,7 @@
 import os
 import tensorflow as tf
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator,
 from tokenizers import ByteLevelBPETokenizer
 
 
@@ -17,7 +17,8 @@ def str_from_dataset_generator(dataset: tf.data.Dataset) -> Iterator[str]:
 
 def build_and_save_tokenizer(dataset: tf.data.Dataset,
                              vocab_size: int,
-                             tokenizer_path: str) -> None:
+                             tokenizer_path: str,
+                             special_tokens: list[str]) -> None:
     if os.path.exists(tokenizer_path):
         print("Tokenizer already exists. Skipping building the model.")
         return
