@@ -1,6 +1,6 @@
 import tensorflow as tf
 import tensorflow_datasets as tfds
-from ../configs/configs import get_configs
+from configs import get_configs
 from tokenizer import build_and_save_tokenizer
 
 def download_and_get_raw_datasets() -> list[tf.data.Dataset]:
