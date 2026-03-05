@@ -1,7 +1,7 @@
 import os
 import tensorflow as tf
 from pathlib import Path
-from typing import Iterator,
+from typing import Iterator
 from tokenizers import ByteLevelBPETokenizer
 
 
