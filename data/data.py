@@ -2,7 +2,6 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 from configs import get_configs
 from tokenizer import build_and_save_tokenizer
-import time
 
 def download_and_get_raw_datasets() -> list[tf.data.Dataset]:
     tfds_config = tfds.translate.wmt.WmtConfig(
@@ -48,16 +47,16 @@ def build_and_save_tokenizer_models() -> None:
     en_data = full_ds.map(lambda x: x["en"], num_parallel_calls=tf.data.AUTOTUNE)
 
     special_tokens = config.data.special_tokens
-    start_time = time.time()
     # German tokenizer
+    print(f"--- Starting German tokenizer ---")
     build_and_save_tokenizer(dataset=de_data,
                             vocab_size=config.data.vocab_size,
                             tokenizer_path=config.data.de_tokenizer_model_path)
-    print(f"--- German tokenizer seconds: {time.time() - start_time} ---")
+    print(f"--- German tokenizer built and saved ---")
 
-    start_time = time.time()
     # English tokenizer
+    print(f"--- Starting English tokenizer ---")
     build_and_save_tokenizer(dataset=en_data,
                             vocab_size=config.data.vocab_size,
                             tokenizer_path=config.data.en_tokenizer_model_path)
-    print(f"--- English tokenizer seconds: {time.time() - start_time} ---")
+    print(f"--- English tokenizer built and saved ---")
