@@ -27,5 +27,5 @@ def build_and_save_tokenizer(dataset: tf.data.Dataset,
     tokenizer.train_from_iterator(str_from_dataset_generator(dataset),
                                     vocab_size=vocab_size,
                                     min_frequency=2,
-                                    special_tokens=list(special_tokens))
+                                    special_tokens=special_tokens)
     tokenizer.save_model(tokenizer_path)
