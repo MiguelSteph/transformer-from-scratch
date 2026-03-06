@@ -51,7 +51,7 @@ def build_and_save_tokenizer_models() -> None:
     build_and_save_tokenizer(dataset=de_data,
                             vocab_size=config.data.vocab_size,
                             tokenizer_path=config.data.de_tokenizer_model_path,
-                            special_tokens=config.data.special_tokens)
+                            special_tokens=list(config.data.special_tokens))
     print(f"--- German tokenizer built and saved ---")
 
     # English tokenizer
@@ -59,5 +59,5 @@ def build_and_save_tokenizer_models() -> None:
     build_and_save_tokenizer(dataset=en_data,
                             vocab_size=config.data.vocab_size,
                             tokenizer_path=config.data.en_tokenizer_model_path,
-                            special_tokens=config.data.special_tokens)
+                            special_tokens=list(config.data.special_tokens))
     print(f"--- English tokenizer built and saved ---")

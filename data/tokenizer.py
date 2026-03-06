@@ -18,7 +18,7 @@ def str_from_dataset_generator(dataset: tf.data.Dataset) -> Iterator[str]:
 def build_and_save_tokenizer(dataset: tf.data.Dataset,
                              vocab_size: int,
                              tokenizer_path: str,
-                             special_tokens: LIst[str]) -> None:
+                             special_tokens: List[str]) -> None:
     if os.path.exists(tokenizer_path):
         print("Tokenizer already exists. Skipping building the model.")
         return
