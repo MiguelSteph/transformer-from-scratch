@@ -4,6 +4,7 @@ import tensorflow as tf
 from tensorflow.train import Int64List, Features, Feature, Example
 import tensorflow_datasets as tfds
 from tokenizers import ByteLevelBPETokenizer
+from pathlib import Path
 
 from configs import get_configs
 from tokenizer import build_and_save_tokenizer
@@ -122,6 +123,9 @@ def preprocessed_and_saved_dataset(de_tokenizer: ByteLevelBPETokenizer,
                                     dataset: tf.data.Dataset, 
                                     ds_path: str, 
                                     max_seq_len: int) -> None:
+    if not os.path.exists(ds_path):
+        Path(ds_path).mkdir(parents=True, exist_ok=True)
+
     options = tf.io.TFRecordOptions(compression_type="GZIP")
     with tf.io.TFRecordWriter(ds_path, options) as f:
         with mp.Pool(os.cpu_count()) as pool:
