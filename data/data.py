@@ -89,7 +89,8 @@ def serialized_example(de_input_tokens: list[float],
     ).SerializeToString()
 
 
-def get_serialized_examples(de_tokenizer, en_tokenizer, samples, max_seq_len) -> str:
+def get_serialized_examples(args) -> str:
+    de_tokenizer, en_tokenizer, samples, max_seq_len = args
     serialized_examples = []
     de_inputs = samples["de"]
     en_inputs = samples["en"]
