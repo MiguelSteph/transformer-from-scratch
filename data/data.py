@@ -6,6 +6,7 @@ import tensorflow_datasets as tfds
 from tokenizers import ByteLevelBPETokenizer
 from pathlib import Path
 import multiprocessing as mp
+from itertools import repeat
 
 from configs import get_configs
 from tokenizer import build_and_save_tokenizer
@@ -88,49 +89,49 @@ def serialized_example(de_input_tokens: list[float],
     ).SerializeToString()
 
 
+def get_serialized_examples(de_tokenizer, en_tokenizer, samples, max_seq_len) -> str:
+    serialized_examples = []
+    de_inputs = samples["de"]
+    en_inputs = samples["en"]
+    for index in range(de_inputs.shape[0]):
+        de_input = de_inputs[index].decode("utf-8").strip()
+        en_input = en_inputs[index].decode("utf-8").strip()
+        de_input_tokens = de_tokenizer.encode(de_input).ids
+        en_input_tokens = en_tokenizer.encode('<|startoftext|>' + en_input).ids
+        en_output_tokens = en_tokenizer.encode(en_input + '<|endoftext|>').ids
+
+        if len(de_input_tokens) > max_seq_len or len(en_input_tokens) > max_seq_len:
+            continue
+        de_pad_encoding = de_tokenizer.encode('<|pad|>').ids[0]
+        en_pad_encoding = en_tokenizer.encode('<|pad|>').ids[0]
+
+        de_input_tokens_with_padding = np.concatenate((de_input_tokens, np.full(max_seq_len - len(de_input_tokens), de_pad_encoding)))
+        en_input_tokens_with_padding = np.concatenate((en_input_tokens, np.full(max_seq_len - len(en_input_tokens), en_pad_encoding)))
+        en_output_tokens_with_padding = np.concatenate((en_output_tokens, np.full(max_seq_len - len(en_output_tokens), en_pad_encoding)))
+
+        de_input_mask = (de_input_tokens_with_padding != de_pad_encoding).astype(np.int32)
+        en_input_mask = (en_input_tokens_with_padding != en_pad_encoding).astype(np.int32)
+
+        serialized_examples.append(serialized_example(de_input_tokens_with_padding,
+                                    de_input_mask,
+                                    en_input_tokens_with_padding,
+                                    en_input_mask,
+                                    en_output_tokens_with_padding))
+    return serialized_examples
+
+
 def preprocessed_and_saved_dataset(de_tokenizer: ByteLevelBPETokenizer, 
                                     en_tokenizer: ByteLevelBPETokenizer,
                                     dataset: tf.data.Dataset, 
                                     ds_path: str, 
                                     max_seq_len: int) -> None:
-
-    def get_serialized_examples(samples) -> str:
-        serialized_examples = []
-        de_inputs = samples["de"]
-        en_inputs = samples["en"]
-        for index in range(de_inputs.shape[0]):
-            de_input = de_inputs[index].decode("utf-8").strip()
-            en_input = en_inputs[index].decode("utf-8").strip()
-            de_input_tokens = de_tokenizer.encode(de_input).ids
-            en_input_tokens = en_tokenizer.encode('<|startoftext|>' + en_input).ids
-            en_output_tokens = en_tokenizer.encode(en_input + '<|endoftext|>').ids
-
-            if len(de_input_tokens) > max_seq_len or len(en_input_tokens) > max_seq_len:
-                continue
-            de_pad_encoding = de_tokenizer.encode('<|pad|>').ids[0]
-            en_pad_encoding = en_tokenizer.encode('<|pad|>').ids[0]
-
-            de_input_tokens_with_padding = np.concatenate((de_input_tokens, np.full(max_seq_len - len(de_input_tokens), de_pad_encoding)))
-            en_input_tokens_with_padding = np.concatenate((en_input_tokens, np.full(max_seq_len - len(en_input_tokens), en_pad_encoding)))
-            en_output_tokens_with_padding = np.concatenate((en_output_tokens, np.full(max_seq_len - len(en_output_tokens), en_pad_encoding)))
-
-            de_input_mask = (de_input_tokens_with_padding != de_pad_encoding).astype(np.int32)
-            en_input_mask = (en_input_tokens_with_padding != en_pad_encoding).astype(np.int32)
-
-            serialized_examples.append(serialized_example(de_input_tokens_with_padding,
-                                        de_input_mask,
-                                        en_input_tokens_with_padding,
-                                        en_input_mask,
-                                        en_output_tokens_with_padding))
-        return serialized_examples
-
     if not os.path.exists(os.path.dirname(ds_path)):
         Path(os.path.dirname(ds_path)).mkdir(parents=True, exist_ok=True)
 
     options = tf.io.TFRecordOptions(compression_type="GZIP")
     with tf.io.TFRecordWriter(ds_path, options) as f:
         with mp.Pool(os.cpu_count()) as pool:
-            for serialized_examples in pool.imap(get_serialized_examples, dataset.batch(1000).as_numpy_iterator(), chunksize=16):
+            for serialized_examples in pool.imap(get_serialized_examples, zip(repeat(de_tokenizer), repeat(en_tokenizer), dataset.batch(1000).as_numpy_iterator(), repeat(max_seq_len)), chunksize=16):
                 for example_str in serialized_examples:
                     f.write(example_str)
 
