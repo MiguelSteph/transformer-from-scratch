@@ -123,8 +123,8 @@ def preprocessed_and_saved_dataset(de_tokenizer: ByteLevelBPETokenizer,
                                     dataset: tf.data.Dataset, 
                                     ds_path: str, 
                                     max_seq_len: int) -> None:
-    if not os.path.exists(ds_path):
-        Path(ds_path).mkdir(parents=True, exist_ok=True)
+    if not os.path.exists(os.path.dirname(ds_path)):
+        Path(os.path.dirname(ds_path)).mkdir(parents=True, exist_ok=True)
 
     options = tf.io.TFRecordOptions(compression_type="GZIP")
     with tf.io.TFRecordWriter(ds_path, options) as f:
