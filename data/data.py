@@ -1,7 +1,13 @@
+import os
+import numpy as np
 import tensorflow as tf
+from tensorflow.train import Int64List, Features, Feature, Example
 import tensorflow_datasets as tfds
+from tokenizers import ByteLevelBPETokenizer
+
 from configs import get_configs
 from tokenizer import build_and_save_tokenizer
+
 
 def download_and_get_raw_datasets() -> list[tf.data.Dataset]:
     tfds_config = tfds.translate.wmt.WmtConfig(
@@ -31,12 +37,11 @@ def download_and_get_raw_datasets() -> list[tf.data.Dataset]:
     )
     builder = tfds.builder("wmt_translate", config=tfds_config)
     builder.download_and_prepare()
-    return builder.as_dataset(split=["train", "validation", "test"])
-    
+    # return builder.as_dataset(split=["train", "validation", "test"])
+
     # FOR TESTING, SHOULD BE REMOVED LATER
-    # train_ds, validation_ds, test_ds = builder.as_dataset(split=["train", "validation", "test"])
-    # return train_ds.take(10_000), validation_ds, test_ds
-    
+    train_ds, validation_ds, test_ds = builder.as_dataset(split=["train", "validation", "test"])
+    return train_ds.take(10_000), validation_ds, test_ds
 
 
 def build_and_save_tokenizer_models() -> None:
@@ -61,3 +66,87 @@ def build_and_save_tokenizer_models() -> None:
                             tokenizer_path=config.data.en_tokenizer_model_path,
                             special_tokens=list(config.data.special_tokens))
     print(f"--- English tokenizer built and saved ---")
+
+
+def serialized_example(de_input_tokens: list[float],
+                   de_input_mask: list[int],
+                   en_input_tokens: list[float],
+                   en_input_mask: list[int],
+                   en_output_tokens: list[float]) -> str:
+    return Example(
+        features = Features(
+            feature = {
+                "de_input": Feature(int64_list=Int64List(value=de_input_tokens)),
+                "de_input_mask": Feature(int64_list=Int64List(value=de_input_mask)),
+                "en_input": Feature(int64_list=Int64List(value=en_input_tokens)),
+                "en_input_mask": Feature(int64_list=Int64List(value=en_input_mask)),
+                "en_output": Feature(int64_list=Int64List(value=en_output_tokens)),
+            }
+        )
+    ).SerializeToString()
+
+
+def get_serialized_examples(de_tokenizer, en_tokenizer, samples, max_seq_len) -> str:
+    serialized_examples = []
+    de_inputs = samples["de"]
+    en_inputs = samples["en"]
+    for index in range(de_inputs.shape[0]):
+        de_input = de_inputs[index].decode("utf-8").strip()
+        en_input = en_inputs[index].decode("utf-8").strip()
+        de_input_tokens = de_tokenizer.encode(de_input).ids
+        en_input_tokens = en_tokenizer.encode('<|startoftext|>' + en_input).ids
+        en_output_tokens = en_tokenizer.encode(en_input + '<|endoftext|>').ids
+
+        if len(de_input_tokens) > max_seq_len or len(en_input_tokens) > max_seq_len:
+            continue
+        de_pad_encoding = de_tokenizer.encode('<|pad|>').ids[0]
+        en_pad_encoding = en_tokenizer.encode('<|pad|>').ids[0]
+
+        de_input_tokens_with_padding = np.concatenate((de_input_tokens, np.full(max_seq_len - len(de_input_tokens), de_pad_encoding)))
+        en_input_tokens_with_padding = np.concatenate((en_input_tokens, np.full(max_seq_len - len(en_input_tokens), en_pad_encoding)))
+        en_output_tokens_with_padding = np.concatenate((en_output_tokens, np.full(max_seq_len - len(en_output_tokens), en_pad_encoding)))
+
+        de_input_mask = (de_input_tokens_with_padding != de_pad_encoding).astype(np.int32)
+        en_input_mask = (en_input_tokens_with_padding != en_pad_encoding).astype(np.int32)
+
+        serialized_examples.append(serialized_example(de_input_tokens_with_padding,
+                                    de_input_mask,
+                                    en_input_tokens_with_padding,
+                                    en_input_mask,
+                                    en_output_tokens_with_padding))
+    return serialized_examples
+
+
+def preprocessed_and_saved_dataset(de_tokenizer: ByteLevelBPETokenizer, 
+                                    en_tokenizer: ByteLevelBPETokenizer,
+                                    dataset: tf.data.Dataset, 
+                                    ds_path: str, 
+                                    max_seq_len: int) -> None:
+    options = tf.io.TFRecordOptions(compression_type="GZIP")
+    with tf.io.TFRecordWriter(ds_path, options) as f:
+        with mp.Pool(os.cpu_count()) as pool:
+            for serialized_examples in pool.imap(get_serialized_examples, dataset.batch(1000).as_numpy_iterator(), chunksize=16):
+                for example_str in serialized_examples:
+                    f.write(example_str)
+
+
+def load_preprocessed_dataset(ds_path: str, max_seq_len: int) -> tf.data.Dataset:
+    feature_description = {
+        "de_input": tf.io.FixedLenFeature([max_seq_len], dtype=tf.int32, default_value=tf.constant(0, dtype=tf.int64, shape=[max_seq_len])),
+        "de_input_mask": tf.io.FixedLenFeature([max_seq_len], dtype=tf.int32, default_value=tf.constant(0, dtype=tf.int64, shape=[max_seq_len])),
+        "en_input": tf.io.FixedLenFeature([max_seq_len], dtype=tf.int32, default_value=tf.constant(0, dtype=tf.int64, shape=[max_seq_len])),
+        "en_input_mask": tf.io.FixedLenFeature([max_seq_len], dtype=tf.int32, default_value=tf.constant(0, dtype=tf.int64, shape=[max_seq_len])),
+        "en_output": tf.io.FixedLenFeature([max_seq_len], dtype=tf.int32, default_value=tf.constant(0, dtype=tf.int64, shape=[max_seq_len]))
+    }
+    def parse_example(serialized_example: str):
+        example = tf.io.parse_single_example(serialized_example, feature_description)
+        return {
+            "de_input": example["de_input"],
+            "de_input_mask": example["de_input_mask"],
+            "en_input": example["en_input"],
+            "en_input_mask": example["en_input_mask"],
+            "en_output": example["en_output"],
+        }
+
+    loaded_ds = tf.data.TFRecordDataset([ds_path], compression_type="GZIP")
+    return loaded_ds.map(parse_example, num_parallel_calls=tf.data.AUTOTUNE)
