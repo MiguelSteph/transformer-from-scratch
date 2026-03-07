@@ -12,6 +12,7 @@ from typing import Iterator, Any, Dict, Tuple
 from collections.abc import Callable
 from dataclasses import dataclass
 import functools
+from tqdm.auto import tqdm
 
 
 @jax.tree_util.register_dataclass
