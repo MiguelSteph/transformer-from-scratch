@@ -4,10 +4,12 @@ import ml_collections
 import datetime
 import jax
 from jax import numpy as jnp
+from flax import linen as nn
 from flax.training import train_state
 import optax
 import orbax.checkpoint as ocp
 from typing import Iterator, Any, Dict, Tuple
+from collections.abc import Callable
 from dataclasses import dataclass
 import functools
 
@@ -192,10 +194,7 @@ def eval_step(state: TrainState,
 
 
 
-def create_train_state(config: ml_collections.ConfigDict, init_prng_key: jax.Array):
-    # Create the model
-    model = create_transformer_module(config)
-
+def create_train_state(model: nn.Module, config: ml_collections.ConfigDict, init_prng_key: jax.Array):
     param_init_key_1, param_init_key_2, param_init_key_3, dropout_key = jax.random.split(init_prng_key, 4)
     sample_enc_x = jax.random.choice(param_init_key_1, config.data.vocab_size, (1, config.data.max_seq_len))
     sample_dec_x = jax.random.choice(param_init_key_2, config.data.vocab_size, (1, config.data.max_seq_len))
@@ -216,7 +215,8 @@ def create_train_state(config: ml_collections.ConfigDict, init_prng_key: jax.Arr
     )
 
 
-def train_and_evaluate(config: ml_collections.ConfigDict,
+def train_and_evaluate(model: nn.Module, 
+                       config: ml_collections.ConfigDict,
                        init_prng: jax.Array,
                        train_ds: tf.data.Dataset,
                        validation_ds: tf.data.Dataset,
@@ -224,7 +224,7 @@ def train_and_evaluate(config: ml_collections.ConfigDict,
     train_ds_iterator = get_dataset_iterator(train_ds,
                                              config.data.batch_size,
                                              is_infinite=True)
-    train_state = create_train_state(config, init_prng)
+    train_state = create_train_state(model, config, init_prng)
 
     # Create the checkpoint manager
     ckp_options = ocp.CheckpointManagerOptions(max_to_keep=1,
