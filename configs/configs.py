@@ -28,7 +28,7 @@ def get_configs():
 
     optimizer_config = ml_collections.ConfigDict(
         dict(
-            base_lr = 0.001,
+            base_lr = 0.0001,
             warmup_epochs = 2,
             training_epochs = 30,
             steps_per_epochs = 10_000
