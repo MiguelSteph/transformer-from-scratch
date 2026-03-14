@@ -42,10 +42,6 @@ def download_and_get_raw_datasets() -> list[tf.data.Dataset]:
     builder.download_and_prepare()
     return builder.as_dataset(split=["train", "validation", "test"])
 
-    # FOR TESTING, SHOULD BE REMOVED LATER
-    # train_ds, validation_ds, test_ds = builder.as_dataset(split=["train", "validation", "test"])
-    # return train_ds.take(10_000), validation_ds, test_ds
-
 
 def build_and_save_tokenizer_models() -> None:
     config = get_configs()
