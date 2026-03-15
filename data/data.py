@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import tensorflow as tf
-from tensorflow.train import Int64List, Features, Feature, Example
+# from tensorflow.train import Int64List, Features, Feature, Example
 import tensorflow_datasets as tfds
 from tokenizers import ByteLevelBPETokenizer
 from pathlib import Path
@@ -72,14 +72,14 @@ def serialized_example(de_input_tokens: list[float],
                    en_input_tokens: list[float],
                    en_input_mask: list[int],
                    en_output_tokens: list[float]) -> str:
-    return Example(
-        features = Features(
+    return tf.train.Example(
+        features = tf.train.Features(
             feature = {
-                "de_input": Feature(int64_list=Int64List(value=de_input_tokens)),
-                "de_input_mask": Feature(int64_list=Int64List(value=de_input_mask)),
-                "en_input": Feature(int64_list=Int64List(value=en_input_tokens)),
-                "en_input_mask": Feature(int64_list=Int64List(value=en_input_mask)),
-                "en_output": Feature(int64_list=Int64List(value=en_output_tokens)),
+                "de_input": tf.train.Feature(int64_list=tf.train.Int64List(value=de_input_tokens)),
+                "de_input_mask": tf.train.Feature(int64_list=tf.train.Int64List(value=de_input_mask)),
+                "en_input": tf.train.Feature(int64_list=tf.train.Int64List(value=en_input_tokens)),
+                "en_input_mask": tf.train.Feature(int64_list=tf.train.Int64List(value=en_input_mask)),
+                "en_output": tf.train.Feature(int64_list=tf.train.Int64List(value=en_output_tokens)),
             }
         )
     ).SerializeToString()
