@@ -1,5 +1,6 @@
 import ml_collections
 import numpy as np
+import jax
 from jax import numpy as jnp
 from flax import linen as nn
 from typing import Any, Dict, Tuple
