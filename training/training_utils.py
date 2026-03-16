@@ -124,24 +124,28 @@ def compute_masked_loss_and_accuracy(params: PyTree,
                       batch: Batch,
                       training: bool,
                       dropout_rng_key: jax.Array | None) -> Tuple[PyTree, Metrics]:
-    logits = apply_fn(
-        {'params': params},
-        enc_x=batch.enc_input,
-        dec_x=batch.dec_input,
-        enc_mask=batch.enc_input_mask,
-        dec_mask=batch.dec_input_mask,
-        training=training,
-        rngs={'dropout': dropout_rng_key} if training else None,
-    )
-    loss = optax.softmax_cross_entropy_with_integer_labels(logits,
-                                                           labels=batch.labels)
-    loss = loss * batch.dec_input_mask
-    loss_val = jnp.divide(jnp.sum(loss), jnp.sum(batch.dec_input_mask))
+    with jax.named_scope("computing_logits"):
+        logits = apply_fn(
+            {'params': params},
+            enc_x=batch.enc_input,
+            dec_x=batch.dec_input,
+            enc_mask=batch.enc_input_mask,
+            dec_mask=batch.dec_input_mask,
+            training=training,
+            rngs={'dropout': dropout_rng_key} if training else None,
+        )
 
-    metrics = {
-        "loss": Metric(jnp.sum(loss), jnp.sum(batch.dec_input_mask)),
-        "acc": get_accuracy_metric(logits, batch.labels, batch.dec_input_mask)
-        }
+    with jax.named_scope("computing_loss"):
+        loss = optax.softmax_cross_entropy_with_integer_labels(logits,
+                                                              labels=batch.labels)
+        loss = loss * batch.dec_input_mask
+        loss_val = jnp.divide(jnp.sum(loss), jnp.sum(batch.dec_input_mask))
+
+    with jax.named_scope("computing_metrics"):
+        metrics = {
+            "loss": Metric(jnp.sum(loss), jnp.sum(batch.dec_input_mask)),
+            "acc": get_accuracy_metric(logits, batch.labels, batch.dec_input_mask)
+            }
     return loss_val, metrics
 
 
