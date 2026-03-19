@@ -9,7 +9,7 @@ def get_configs():
             train_ds_path = 'preprocessed_data/train.tfrecord',
             validation_ds_path = 'preprocessed_data/validation.tfrecord',
             test_ds_path = 'preprocessed_data/test.tfrecord',
-            vocab_size = 30_000,
+            vocab_size = 20_000,
             max_seq_len = 100,
             batch_size = 32,
         )
