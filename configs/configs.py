@@ -18,8 +18,8 @@ def get_configs():
     model_config = ml_collections.ConfigDict(
         dict(
             emb_dim = 256,
-            num_heads = 4,
-            d_proj = 1024,
+            num_heads = 6,
+            d_proj = 256,
             ff_d_inner_factor = 4, # ff_d_inner = ff_d_inner_factor * emb_dim
             dropout = 0.1,
             num_blocks = 4,
@@ -29,7 +29,7 @@ def get_configs():
     optimizer_config = ml_collections.ConfigDict(
         dict(
             base_lr = 0.0001,
-            warmup_epochs = 10,
+            warmup_epochs = 4,
             training_epochs = 30,
             steps_per_epochs = 15_000
         )
