@@ -17,9 +17,9 @@ def get_configs():
 
     model_config = ml_collections.ConfigDict(
         dict(
-            emb_dim = 256,
-            num_heads = 6,
-            d_proj = 256,
+            emb_dim = 192,
+            num_heads = 4,
+            d_proj = 192,
             ff_d_inner_factor = 4, # ff_d_inner = ff_d_inner_factor * emb_dim
             dropout = 0.1,
             num_blocks = 4,
