@@ -244,17 +244,18 @@ class TransformerModule(nn.Module):
 
 
     def __call__(self, enc_x, dec_x, enc_mask=None, dec_mask=None, training=False):
-        with jax.named_scope("encoder"):
+        with jax.named_scope("enc_embed_and_pos_embed"):
             enc_output = self.de_embed(enc_x)
             enc_output = self.pos_embed(enc_output)
-            for i in range(self.num_blocks):
-                enc_output = self.encoders[i](enc_output, enc_mask, training)
 
-        with jax.named_scope("decoder"):
+        with jax.named_scope("dec_embed_and_pos_embed"):
             dec_output = self.en_embed(dec_x)
             dec_output = self.pos_embed(dec_output)
-            for i in range(self.num_blocks):
-                dec_output = self.decoders[i](dec_output, enc_output, dec_mask, training)
+
+        for i in range(self.num_blocks):
+          with jax.named_scope("encoder_decoder"):
+              enc_output = self.encoders[i](enc_output, enc_mask, training)
+              dec_output = self.decoders[i](dec_output, enc_output, dec_mask, training)
 
         output = self.en_embed.attend(dec_output)
         return output
