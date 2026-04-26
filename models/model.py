@@ -242,7 +242,7 @@ class TransformerModule(nn.Module):
         
 
     def decode(self, enc_x, dec_x, enc_output, training=False):
-        dec_mask = nn.combine_mask(
+        dec_mask = nn.combine_masks(
           nn.make_attention_mask(dec_x > 0, dec_x > 0),
           nn.make_causal_mask(dec_x),
         )

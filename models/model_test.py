@@ -5,7 +5,6 @@ main_rng_key = jax.random.key(18)
 # Test model components
 test_num_heads = 8
 test_d_proj = 32
-test_use_causal_mask= True
 test_emb_dim = 256
 test_src_len= 60
 test_batch_size = 32
@@ -28,8 +27,6 @@ variables = test_pos_enc_module.init(test_prng_key, test_random_input)
 pos_output = test_pos_enc_module.apply({}, test_random_input)
 assert test_random_input.shape == pos_output.shape, "Incorrect expected output shape"
 
-
-
 # Test multi head attention layer shape output
 test_multi_head_att_module = MultiHeadAttentionModule(test_num_heads,
                                                       test_emb_dim,
@@ -38,7 +35,7 @@ test_multi_head_att_module = MultiHeadAttentionModule(test_num_heads,
 k = jax.random.normal(key_1, (test_batch_size, test_src_len, test_emb_dim))
 v = jax.random.normal(key_2, (test_batch_size, test_src_len, test_emb_dim))
 q = jax.random.normal(key_3, (test_batch_size, test_src_len, test_emb_dim))
-sample_mask = jax.random.choice(key_3, 2, (test_batch_size, test_src_len))
+sample_mask = jax.random.choice(key_3, 2, (1, 1, test_src_len, test_src_len))
 
 variables = test_multi_head_att_module.init(test_prng_key, k, v, q)
 params = variables['params']
@@ -50,12 +47,11 @@ assert attentions.shape == (test_batch_size, test_src_len, test_emb_dim), "Multi
 # Test Feedforward module
 sample_input = jax.random.normal(key_1, (test_batch_size, test_src_len, test_emb_dim))
 
-test_ff_module = FeedForwardModule(test_d_inner, test_emb_dim)
+test_ff_module = FeedForwardModule(test_d_inner, test_emb_dim, test_dropout)
 variables = test_ff_module.init(key_2, sample_input)
 
 test_output = test_ff_module.apply(variables, sample_input)
 assert test_output.shape == (test_batch_size, test_src_len, test_emb_dim), "FF Module: Incorrect expected output shape"
-
 
 
 # Test Add&Norm module
@@ -75,7 +71,7 @@ assert test_output.shape == (test_batch_size, test_src_len, test_emb_dim), "Add&
 
 
 # Test Encoder block module
-sample_mask = jax.random.choice(key_1, 2, (test_batch_size, test_src_len))
+sample_mask = jax.random.choice(key_1, 2, (1, 1, test_src_len))
 sample_x = jax.random.normal(key_2, (test_batch_size, test_src_len, test_emb_dim))
 
 test_encoder_block_module = EncoderBlockModule(test_d_inner, test_emb_dim,
@@ -88,8 +84,9 @@ assert test_output.shape == (test_batch_size, test_src_len, test_emb_dim), "Enco
 
 
 
+
 # Test Decoder block module
-sample_mask = jax.random.choice(key_1, 2, (test_batch_size, test_src_len))
+sample_mask = jax.random.choice(key_1, 2, (1, 1, test_src_len))
 sample_x = jax.random.normal(key_2, (test_batch_size, test_src_len, test_emb_dim))
 sample_enc_output = jax.random.normal(key_3, (test_batch_size, test_src_len, test_emb_dim))
 
@@ -97,15 +94,13 @@ test_decoder_block_module = DecoderBlockModule(test_d_inner, test_emb_dim,
                                                test_dropout, test_num_heads, test_d_proj)
 variables = test_decoder_block_module.init(key_4, sample_x, sample_enc_output)
 test_output = test_decoder_block_module.apply(variables, sample_x, sample_enc_output,
-                                              mask=sample_mask, training=True,
-                                              rngs={'dropout': dropout_key})
+                                              dec_mask=sample_mask, enc_dec_mask=sample_mask,
+                                              training=True, rngs={'dropout': dropout_key})
 assert test_output.shape == (test_batch_size, test_src_len, test_emb_dim), "Decoder Module: Incorrect expected output shape"
 
 
 
 # Test transformer output shape
-sample_enc_mask = jax.random.choice(key_1, 2, (test_batch_size, test_src_len))
-sample_dec_mask = jax.random.choice(key_2, 2, (test_batch_size, test_src_len))
 sample_enc_x = jax.random.choice(key_3, test_vocab_size, (test_batch_size, test_src_len))
 sample_dec_x = jax.random.choice(key_4, test_vocab_size, (test_batch_size, test_src_len))
 
@@ -115,7 +110,6 @@ test_transformer_module = TransformerModule(test_num_blocks, test_ff_d_inner,
                                             test_vocab_size, max_seq_len)
 variables = test_transformer_module.init(key_5, sample_enc_x, sample_dec_x)
 test_output = test_transformer_module.apply(variables, sample_enc_x, sample_dec_x,
-                                            sample_enc_mask, sample_dec_mask,
                                             training=True, rngs={'dropout': dropout_key})
 assert test_output.shape == (test_batch_size, test_src_len, test_vocab_size), "Full transformer Module: Incorrect expected output shape"
 
@@ -133,8 +127,6 @@ del test_encoder_block_module
 del test_decoder_block_module
 del test_multi_head_att_module
 del test_add_norm_module
-del sample_enc_mask
-del sample_dec_mask
 del sample_enc_x
 del sample_dec_x
 del test_transformer_module
