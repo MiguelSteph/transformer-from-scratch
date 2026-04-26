@@ -255,7 +255,7 @@ class TransformerModule(nn.Module):
                 dec_output = self.decoders[i](dec_output, enc_output, dec_mask, enc_dec_mask, training)
 
         logits = self.embed.attend(dec_output)
-        logits = logits / jnp.sqrt(vocab_size)
+        logits = logits / jnp.sqrt(self.vocab_size)
         return logits
 
 
