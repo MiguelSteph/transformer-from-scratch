@@ -3,13 +3,14 @@ import ml_collections
 def get_configs():
     data_config = ml_collections.ConfigDict(
         dict(
-            special_tokens = ['<|startoftext|>','<|endoftext|>','<|pad|>'],
-            de_tokenizer_model_path = 'de_tokenizer_20_000_vocab_size_model',
-            en_tokenizer_model_path = 'en_tokenizer_20_000_vocab_size_model',
+            special_tokens = ['<|startoftext|>','<|endoftext|>'],
+            de_tokenizer_model_path = 'tokenizer_32_000_vocab_size_model',
+            en_tokenizer_model_path = 'tokenizer_32_000_vocab_size_model',
+            tokenizer_model_path = 'tokenizer_32_000_vocab_size_model',
             train_ds_path = 'preprocessed_data/train.tfrecord',
             validation_ds_path = 'preprocessed_data/validation.tfrecord',
             test_ds_path = 'preprocessed_data/test.tfrecord',
-            vocab_size = 20_000,
+            vocab_size = 32_000,
             max_seq_len = 100,
             batch_size = 32,
         )

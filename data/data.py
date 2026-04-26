@@ -49,22 +49,15 @@ def build_and_save_tokenizer_models() -> None:
     full_ds = train_ds.concatenate(validation_ds).concatenate(test_ds)
     de_data = full_ds.map(lambda x: x["de"], num_parallel_calls=tf.data.AUTOTUNE)
     en_data = full_ds.map(lambda x: x["en"], num_parallel_calls=tf.data.AUTOTUNE)
+    all_data = de_data.concatenate(en_data)
 
-    # German tokenizer
-    print(f"--- Starting German tokenizer ---")
-    build_and_save_tokenizer(dataset=de_data,
+    # Buiding tokenizer
+    print(f"--- Starting Tokenizer ---")
+    build_and_save_tokenizer(dataset=all_data,
                             vocab_size=config.data.vocab_size,
-                            tokenizer_path=config.data.de_tokenizer_model_path,
+                            tokenizer_path=config.data.tokenizer_model_path,
                             special_tokens=list(config.data.special_tokens))
-    print(f"--- German tokenizer built and saved ---")
-
-    # English tokenizer
-    print(f"--- Starting English tokenizer ---")
-    build_and_save_tokenizer(dataset=en_data,
-                            vocab_size=config.data.vocab_size,
-                            tokenizer_path=config.data.en_tokenizer_model_path,
-                            special_tokens=list(config.data.special_tokens))
-    print(f"--- English tokenizer built and saved ---")
+    print(f"--- Tokenizer built and saved ---")
 
 
 def serialized_example(de_input_tokens: list[float],
@@ -99,15 +92,13 @@ def get_serialized_examples(args) -> str:
 
         if len(de_input_tokens) > max_seq_len or len(en_input_tokens) > max_seq_len:
             continue
-        de_pad_encoding = de_tokenizer.encode('<|pad|>').ids[0]
-        en_pad_encoding = en_tokenizer.encode('<|pad|>').ids[0]
 
-        de_input_tokens_with_padding = np.concatenate((de_input_tokens, np.full(max_seq_len - len(de_input_tokens), de_pad_encoding)))
-        en_input_tokens_with_padding = np.concatenate((en_input_tokens, np.full(max_seq_len - len(en_input_tokens), en_pad_encoding)))
-        en_output_tokens_with_padding = np.concatenate((en_output_tokens, np.full(max_seq_len - len(en_output_tokens), en_pad_encoding)))
+        de_input_tokens_with_padding = np.concatenate((de_input_tokens, np.full(max_seq_len - len(de_input_tokens), 0)))
+        en_input_tokens_with_padding = np.concatenate((en_input_tokens, np.full(max_seq_len - len(en_input_tokens), 0)))
+        en_output_tokens_with_padding = np.concatenate((en_output_tokens, np.full(max_seq_len - len(en_output_tokens), 0)))
 
-        de_input_mask = (de_input_tokens_with_padding != de_pad_encoding).astype(np.int32)
-        en_input_mask = (en_input_tokens_with_padding != en_pad_encoding).astype(np.int32)
+        de_input_mask = (de_input_tokens_with_padding != 0).astype(np.int32)
+        en_input_mask = (en_input_tokens_with_padding != 0).astype(np.int32)
 
         serialized_examples.append(serialized_example(de_input_tokens_with_padding,
                                     de_input_mask,
@@ -128,7 +119,8 @@ def preprocessed_and_saved_dataset(de_tokenizer: ByteLevelBPETokenizer,
     options = tf.io.TFRecordOptions(compression_type="GZIP")
     with tf.io.TFRecordWriter(ds_path, options) as f:
         with mp.Pool(os.cpu_count()) as pool:
-            for serialized_examples in pool.imap(get_serialized_examples, zip(repeat(de_tokenizer), repeat(en_tokenizer), dataset.batch(1000).as_numpy_iterator(), repeat(max_seq_len)), chunksize=16):
+            for serialized_examples in pool.imap(get_serialized_examples, zip(repeat(de_tokenizer), repeat(en_tokenizer), 
+                                                dataset.batch(1000).as_numpy_iterator(), repeat(max_seq_len)), chunksize=16):
                 for example_str in serialized_examples:
                     f.write(example_str)
 
