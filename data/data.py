@@ -49,7 +49,7 @@ def build_and_save_tokenizer_models() -> None:
     full_ds = train_ds.concatenate(validation_ds).concatenate(test_ds)
     de_data = full_ds.map(lambda x: x["de"], num_parallel_calls=tf.data.AUTOTUNE)
     en_data = full_ds.map(lambda x: x["en"], num_parallel_calls=tf.data.AUTOTUNE)
-    all_data = de_data.concatenate(en_data)
+    all_data = tf.data.Dataset.sample_from_datasets([de_data, en_data])
 
     # Buiding tokenizer
     print(f"--- Starting Tokenizer ---")
