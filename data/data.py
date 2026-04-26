@@ -61,17 +61,13 @@ def build_and_save_tokenizer_models() -> None:
 
 
 def serialized_example(de_input_tokens: list[float],
-                   de_input_mask: list[int],
                    en_input_tokens: list[float],
-                   en_input_mask: list[int],
                    en_output_tokens: list[float]) -> str:
     return tf.train.Example(
         features = tf.train.Features(
             feature = {
                 "de_input": tf.train.Feature(int64_list=tf.train.Int64List(value=de_input_tokens)),
-                "de_input_mask": tf.train.Feature(int64_list=tf.train.Int64List(value=de_input_mask)),
                 "en_input": tf.train.Feature(int64_list=tf.train.Int64List(value=en_input_tokens)),
-                "en_input_mask": tf.train.Feature(int64_list=tf.train.Int64List(value=en_input_mask)),
                 "en_output": tf.train.Feature(int64_list=tf.train.Int64List(value=en_output_tokens)),
             }
         )
@@ -97,13 +93,8 @@ def get_serialized_examples(args) -> str:
         en_input_tokens_with_padding = np.concatenate((en_input_tokens, np.full(max_seq_len - len(en_input_tokens), 0)))
         en_output_tokens_with_padding = np.concatenate((en_output_tokens, np.full(max_seq_len - len(en_output_tokens), 0)))
 
-        de_input_mask = (de_input_tokens_with_padding != 0).astype(np.int32)
-        en_input_mask = (en_input_tokens_with_padding != 0).astype(np.int32)
-
         serialized_examples.append(serialized_example(de_input_tokens_with_padding,
-                                    de_input_mask,
                                     en_input_tokens_with_padding,
-                                    en_input_mask,
                                     en_output_tokens_with_padding))
     return serialized_examples
 
@@ -128,18 +119,14 @@ def preprocessed_and_saved_dataset(de_tokenizer: ByteLevelBPETokenizer,
 def load_preprocessed_dataset(ds_path: str, max_seq_len: int) -> tf.data.Dataset:
     feature_description = {
         "de_input": tf.io.FixedLenFeature([max_seq_len], dtype=tf.int32, default_value=tf.constant(0, dtype=tf.int64, shape=[max_seq_len])),
-        "de_input_mask": tf.io.FixedLenFeature([max_seq_len], dtype=tf.int32, default_value=tf.constant(0, dtype=tf.int64, shape=[max_seq_len])),
         "en_input": tf.io.FixedLenFeature([max_seq_len], dtype=tf.int32, default_value=tf.constant(0, dtype=tf.int64, shape=[max_seq_len])),
-        "en_input_mask": tf.io.FixedLenFeature([max_seq_len], dtype=tf.int32, default_value=tf.constant(0, dtype=tf.int64, shape=[max_seq_len])),
         "en_output": tf.io.FixedLenFeature([max_seq_len], dtype=tf.int32, default_value=tf.constant(0, dtype=tf.int64, shape=[max_seq_len]))
     }
     def parse_example(serialized_example: str):
         example = tf.io.parse_single_example(serialized_example, feature_description)
         return {
             "de_input": example["de_input"],
-            "de_input_mask": example["de_input_mask"],
             "en_input": example["en_input"],
-            "en_input_mask": example["en_input_mask"],
             "en_output": example["en_output"],
         }
 
