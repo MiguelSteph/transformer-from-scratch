@@ -22,14 +22,14 @@ class PositionalEncoding(nn.Module):
         internal_pos_encodings = internal_pos_encodings[None]
         self.pos_encodings = jnp.array(internal_pos_encodings)
 
-    def __call__(self, x):
+    def __call__(self, inputs):
         """Adds the positional encodings to the input and returns it.
 
         Keyword arguments:
-        x -- the embeddings. The shape of X is (batch_size, max_seq_len, emb_dim)
+        inputs -- the embeddings. The shape of X is (batch_size, max_seq_len, emb_dim)
         """
-        seq_len = x.shape[1]
-        x = x + self.pos_encodings[:, :seq_len]
+        seq_len = inputs.shape[1]
+        x = inputs + self.pos_encodings[:, :seq_len]
         return x
 
 
@@ -40,21 +40,20 @@ class MultiHeadAttentionModule(nn.Module):
     d_q: int # Embedding dimension of the query
     d_k_proj: int # Projection dimension of the key or the query
     d_v_proj: int # Projection dimension of the value
-    use_causal_mask: bool = False # Whether we should use a causal mask
 
     def setup(self):
         self.k_proj = nn.Dense(self.num_heads * self.d_k_proj,
                                kernel_init=nn.initializers.xavier_uniform(),
-                               bias_init=nn.initializers.zeros)
+                               use_bias=False)
         self.v_proj = nn.Dense(self.num_heads * self.d_v_proj,
                                kernel_init=nn.initializers.xavier_uniform(),
-                               bias_init=nn.initializers.zeros)
+                               use_bias=False)
         self.q_proj = nn.Dense(self.num_heads * self.d_k_proj,
                                kernel_init=nn.initializers.xavier_uniform(),
-                               bias_init=nn.initializers.zeros)
+                               use_bias=False)
         self.proj_back = nn.Dense(self.d_q,
                                  kernel_init=nn.initializers.xavier_uniform(),
-                                 bias_init=nn.initializers.zeros)
+                                 use_bias=False)
 
 
     def __call__(self, k, v, q, mask=None):
@@ -98,8 +97,7 @@ class MultiHeadAttentionModule(nn.Module):
         k -- the key. The shape of the key is (batch_size, num_heads, kv_seq_len, d_k)
         v -- the value. The shape of the value is (batch_size, num_heads, kv_seq_len, d_v)
         q -- the query. The shape of the query is (batch_size, num_heads, q_seq_len, d_k)
-        mask -- the attention mask on the query. When  The shape of the mask is (batch_size, q_seq_len)
-        use_causal_mask -- whether we should apply a causal mask
+        mask -- the mask. The shape of the mask is (1, num_heads, q_seq_len, kv_seq_len)
 
         Returns the scaled dot product attention in the following shape: (batch_size, num_heads, q_seq_len, d_v)
         """
@@ -109,44 +107,29 @@ class MultiHeadAttentionModule(nn.Module):
         k_tr = jnp.matrix_transpose(k) # k_tr is now of shape (batch_size, num_heads, d_k, kv_seq_len)
         q_k_tr = jnp.matmul(q, k_tr)
         logits = q_k_tr / jnp.sqrt(d_k)
-        # By default we consider all the logits
-        computed_mask = jnp.ones((1, 1, q_seq_len, kv_seq_len))
-        if self.use_causal_mask:
-            computed_mask = self.get_causal_attention_mask(q_seq_len)
-
-        if mask is not None:
-            reshaped_mask = jnp.reshape(mask, (-1, 1, q_seq_len, 1))
-            computed_mask = jnp.minimum(computed_mask, reshaped_mask)
-
-        logits = jnp.where(computed_mask == 0, jnp.finfo(jnp.float32).min, logits)
+        logits = jnp.where(mask == 0, jnp.finfo(jnp.float32).min, logits)
         attention = nn.softmax(logits, axis=-1)
         values = jnp.matmul(attention, v)
         return values
-
-    def get_causal_attention_mask(self, seq_len):
-        """
-        Given the sequence length, returns the causal attention mask.
-
-        seq_len -- int. The sequence length.
-        """
-        i = jnp.arange(seq_len)[:, None]
-        j = jnp.arange(seq_len)
-        mask = (i >= j).astype(jnp.int32)
-        mask = jnp.reshape(mask, (1, 1, seq_len, seq_len))
-        return mask
-
-
 
 
 class FeedForwardModule(nn.Module):
     d_inner: int  # Inner dimension of the feed forward module
     d_output: int # Output dimension of the module
+    dropout: float # Dropout rate
 
     @nn.compact
-    def __call__(self, x):
-        x = nn.Dense(self.d_inner, name='ff_inner')(x)
+    def __call__(self, inputs, training=False):
+        x = nn.Dense(self.d_inner, 
+                    kernel_init=nn.initializers.xavier_uniform(),
+                    bias_init=nn.initializers.normal(stddev=1e-6),
+                    name='ff_inner')(inputs)
         x = nn.relu(x)
-        x = nn.Dense(self.d_output, name='ff_output')(x)
+        x = nn.Dropout(self.dropout, deterministic=not training, name='ff_dropout_inner')(x)
+        x = nn.Dense(self.d_output,
+                    kernel_init=nn.initializers.xavier_uniform(),
+                    bias_init=nn.initializers.normal(stddev=1e-6),
+                    name='ff_output')(x)
         return x
 
 
@@ -156,8 +139,8 @@ class AddAndNormModule(nn.Module):
     dropout: float # Dropout rate
 
     @nn.compact
-    def __call__(self, x, residual_x, training=False):
-        x = nn.Dropout(self.dropout, deterministic=not training, name='dropout_module')(x)
+    def __call__(self, inputs, residual_x, training=False):
+        x = nn.Dropout(self.dropout, deterministic=not training, name='dropout_module')(inputs)
         x = x + residual_x
         x = nn.LayerNorm()(x)
         return x
@@ -173,15 +156,14 @@ class EncoderBlockModule(nn.Module):
     d_proj: int # Key, Value and query projection dimension
 
     @nn.compact
-    def __call__(self, x, mask=None, training=False):
-        residual_x = x
+    def __call__(self, inputs, mask=None, training=False):
+        residual_x = inputs
         x = MultiHeadAttentionModule(self.num_heads, self.emb_dim,
-                                     self.d_proj, self.d_proj,
-                                     use_causal_mask=False)(x, x, x, mask)
+                                     self.d_proj, self.d_proj)(inputs, inputs, inputs, mask)
         x = AddAndNormModule(self.dropout)(x, residual_x, training)
 
         residual_x = x
-        x = FeedForwardModule(self.ff_d_inner, self.emb_dim)(x)
+        x = FeedForwardModule(self.ff_d_inner, self.emb_dim, self.dropout)(x, training)
         x = AddAndNormModule(self.dropout)(x, residual_x, training)
 
         return x
@@ -197,21 +179,19 @@ class DecoderBlockModule(nn.Module):
     d_proj: int # Key, Value and query projection dimension
 
     @nn.compact
-    def __call__(self, x, enc_output, mask=None, training=False):
-        residual_x = x
+    def __call__(self, inputs, enc_output, dec_mask=None, enc_dec_mask=None, training=False):
+        residual_x = inputs
         x = MultiHeadAttentionModule(self.num_heads, self.emb_dim,
-                                     self.d_proj, self.d_proj,
-                                     use_causal_mask=True)(x, x, x, mask)
+                                     self.d_proj, self.d_proj)(inputs, inputs, inputs, dec_mask)
         x = AddAndNormModule(self.dropout)(x, residual_x, training)
 
         residual_x = x
         x = MultiHeadAttentionModule(self.num_heads, self.emb_dim,
-                                     self.d_proj, self.d_proj,
-                                     use_causal_mask=False)(enc_output, enc_output, x, mask)
+                                     self.d_proj, self.d_proj)(enc_output, enc_output, x, enc_dec_mask)
         x = AddAndNormModule(self.dropout)(x, residual_x, training)
 
         residual_x = x
-        x = FeedForwardModule(self.ff_d_inner, self.emb_dim)(x)
+        x = FeedForwardModule(self.ff_d_inner, self.emb_dim, self.dropout)(x, training)
         x = AddAndNormModule(self.dropout)(x, residual_x, training)
 
         return x
@@ -230,7 +210,8 @@ class TransformerModule(nn.Module):
     max_seq_len: int # Maximum sequence length
 
     def setup(self):
-        self.embed = nn.Embed(self.vocab_size, self.emb_dim)
+        self.embed = nn.Embed(self.vocab_size, self.emb_dim, 
+                              embedding_init=nn.initializers.normal(stddev=1.0))
         self.pos_embed = PositionalEncoding(self.emb_dim, self.max_seq_len)
         self.encoders = [EncoderBlockModule(self.ff_d_inner, self.emb_dim,
                                             self.dropout, self.num_heads,
@@ -243,23 +224,39 @@ class TransformerModule(nn.Module):
         self.norm = nn.LayerNorm()
 
 
-    def __call__(self, enc_x, dec_x, enc_mask=None, dec_mask=None, training=False):
+    def __call__(self, enc_x, dec_x, training=False):
+        enc_output = self.encode(enc_x, training)
+        return self.decode(enc_x, dec_x, enc_output, training)
+
+
+    def encode(self, enc_x, training=False):
+        enc_mask = nn.make_attention_mask(enc_x > 0, enc_x > 0)
+
         with jax.named_scope("encoder"):
             enc_output = self.embed(enc_x)
             enc_output = self.pos_embed(enc_output)
             for i in range(self.num_blocks):
                 enc_output = self.encoders[i](enc_output, enc_mask, training)
 
+        return enc_output
+        
+
+    def decode(self, enc_x, dec_x, enc_output, training=False):
+        dec_mask = nn.combine_mask(
+          nn.make_attention_mask(dec_x > 0, dec_x > 0),
+          nn.make_causal_mask(dec_x),
+        )
+        enc_dec_mask = nn.make_attention_mask(dec_x > 0, enc_x > 0)
+
         with jax.named_scope("decoder"):
             dec_output = self.embed(dec_x)
             dec_output = self.pos_embed(dec_output)
             for i in range(self.num_blocks):
-                dec_output = self.decoders[i](dec_output, enc_output, dec_mask, training)
+                dec_output = self.decoders[i](dec_output, enc_output, dec_mask, enc_dec_mask, training)
 
-        dec_output = self.norm(dec_output)
-        output = self.embed.attend(dec_output)
-        return output
-
+        logits = self.embed.attend(dec_output)
+        logits = logits / jnp.sqrt(vocab_size)
+        return logits
 
 
 

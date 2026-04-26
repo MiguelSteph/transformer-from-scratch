@@ -34,8 +34,7 @@ assert test_random_input.shape == pos_output.shape, "Incorrect expected output s
 test_multi_head_att_module = MultiHeadAttentionModule(test_num_heads,
                                                       test_emb_dim,
                                                       test_d_proj,
-                                                      test_d_proj,
-                                                      use_causal_mask=True)
+                                                      test_d_proj)
 k = jax.random.normal(key_1, (test_batch_size, test_src_len, test_emb_dim))
 v = jax.random.normal(key_2, (test_batch_size, test_src_len, test_emb_dim))
 q = jax.random.normal(key_3, (test_batch_size, test_src_len, test_emb_dim))
