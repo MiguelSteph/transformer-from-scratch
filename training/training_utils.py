@@ -19,9 +19,7 @@ from tqdm.auto import tqdm
 @dataclass
 class Batch:
     enc_input: jax.Array
-    enc_input_mask: jax.Array
     dec_input: jax.Array
-    dec_input_mask: jax.Array
     labels: jax.Array
 
 
@@ -55,9 +53,7 @@ def generate_random_batch(init_prng: jax.Array,
                                    dtype=jnp.int64, minval=0, maxval=vocab_size)
     dec_input = dec_input_raw[:, :-1]
     labels = dec_input_raw[:, 1:]
-    enc_input_mask = jnp.full(shape=(batch_size, max_seq_len), fill_value=1, dtype=jnp.int64)
-    dec_input_mask = jnp.full(shape=(batch_size, max_seq_len), fill_value=1, dtype=jnp.int64)
-    return Batch(enc_input, enc_input_mask, dec_input, dec_input_mask, labels)
+    return Batch(enc_input, dec_input, labels)
 
 
 def create_learning_rate_scheduler(base_lr: jnp.float32,
@@ -84,9 +80,7 @@ def get_dataset_iterator(dataset: tf.data.Dataset,
                   num_parallel_calls=tf.data.AUTOTUNE)
     for sample in ds:
         yield Batch(enc_input=jnp.array(sample["de_input"].numpy()),
-                    enc_input_mask=jnp.array(sample["de_input_mask"].numpy()),
                     dec_input=jnp.array(sample["en_input"].numpy()),
-                    dec_input_mask=jnp.array(sample["en_input_mask"].numpy()),
                     labels=jnp.array(sample["en_output"].numpy()))
 
 
@@ -129,22 +123,21 @@ def compute_masked_loss_and_accuracy(params: PyTree,
             {'params': params},
             enc_x=batch.enc_input,
             dec_x=batch.dec_input,
-            enc_mask=batch.enc_input_mask,
-            dec_mask=batch.dec_input_mask,
             training=training,
             rngs={'dropout': dropout_rng_key} if training else None,
         )
 
     with jax.named_scope("computing_loss"):
+        dec_input_mask = (batch.dec_input > 0).astype(int)
         loss = optax.softmax_cross_entropy_with_integer_labels(logits,
                                                               labels=batch.labels)
-        loss = loss * batch.dec_input_mask
-        loss_val = jnp.divide(jnp.sum(loss), jnp.sum(batch.dec_input_mask))
+        loss = loss * dec_input_mask
+        loss_val = jnp.divide(jnp.sum(loss), jnp.sum(dec_input_mask))
 
     with jax.named_scope("computing_metrics"):
         metrics = {
-            "loss": Metric(jnp.sum(loss), jnp.sum(batch.dec_input_mask)),
-            "acc": get_accuracy_metric(logits, batch.labels, batch.dec_input_mask)
+            "loss": Metric(jnp.sum(loss), jnp.sum(dec_input_mask)),
+            "acc": get_accuracy_metric(logits, batch.labels, dec_input_mask)
             }
     return loss_val, metrics
 
