@@ -12,7 +12,7 @@ def get_configs():
             test_ds_path = 'preprocessed_data/test.tfrecord',
             vocab_size = 32_000,
             max_seq_len = 100,
-            batch_size = 12,
+            batch_size = 16,
         )
     )
 
@@ -23,7 +23,7 @@ def get_configs():
             d_proj = 256,
             ff_d_inner_factor = 4, # ff_d_inner = ff_d_inner_factor * emb_dim
             dropout = 0.1,
-            num_blocks = 6,
+            num_blocks = 4,
         )
     )
 
