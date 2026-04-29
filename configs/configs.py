@@ -12,16 +12,16 @@ def get_configs():
             test_ds_path = 'preprocessed_data/test.tfrecord',
             vocab_size = 32_000,
             max_seq_len = 100,
-            batch_size = 16,
+            batch_size = 32,
         )
     )
 
     model_config = ml_collections.ConfigDict(
         dict(
-            emb_dim = 256,
+            emb_dim = 128,
             num_heads = 8,
-            d_proj = 256,
-            ff_d_inner_factor = 4, # ff_d_inner = ff_d_inner_factor * emb_dim
+            d_proj = 128,
+            ff_d_inner_factor = 2, # ff_d_inner = ff_d_inner_factor * emb_dim
             dropout = 0.1,
             num_blocks = 4,
         )
