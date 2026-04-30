@@ -62,9 +62,12 @@ def create_learning_rate_scheduler(base_lr: jnp.float32,
                                    steps_per_epochs: jnp.int32) -> Any:
     warmup_fn = optax.linear_schedule(init_value=0, end_value=base_lr,
                                       transition_steps=warmup_epochs * steps_per_epochs)
-    cosine_fn = optax.cosine_decay_schedule(init_value=base_lr,
-                                            decay_steps=cosine_epochs * steps_per_epochs)
-    schedule_fn = optax.join_schedules(schedules=[warmup_fn, cosine_fn],
+    # cosine_fn = optax.cosine_decay_schedule(init_value=base_lr,
+    #                                         decay_steps=cosine_epochs * steps_per_epochs)
+    # schedule_fn = optax.join_schedules(schedules=[warmup_fn, cosine_fn],
+    #                                    boundaries=[warmup_epochs * steps_per_epochs])
+    constant_fn = optax.constant_schedule(value=base_lr)
+    schedule_fn = optax.join_schedules(schedules=[warmup_fn, constant_fn],
                                        boundaries=[warmup_epochs * steps_per_epochs])
     return schedule_fn
 
