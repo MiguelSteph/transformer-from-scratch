@@ -23,13 +23,13 @@ def get_configs():
             d_proj = 128,
             ff_d_inner_factor = 2, # ff_d_inner = ff_d_inner_factor * emb_dim
             dropout = 0.1,
-            num_blocks = 4,
+            num_blocks = 6,
         )
     )
 
     optimizer_config = ml_collections.ConfigDict(
         dict(
-            base_lr = 0.0001,
+            base_lr = 0.001,
             warmup_epochs = 4,
             training_epochs = 30,
             steps_per_epochs = 15_000
