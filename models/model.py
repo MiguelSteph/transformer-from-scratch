@@ -222,6 +222,9 @@ class TransformerModule(nn.Module):
                                             self.d_proj)
                          for i in range(self.num_blocks)]
         self.norm = nn.LayerNorm()
+        self.head = nn.Dense(self.vocab_size, 
+                             kernel_init=nn.initializers.xavier_uniform(),
+                             bias_init=nn.initializers.normal(stddev=1e-6))
 
 
     def __call__(self, enc_x, dec_x, training=False):
@@ -254,8 +257,9 @@ class TransformerModule(nn.Module):
             for i in range(self.num_blocks):
                 dec_output = self.decoders[i](dec_output, enc_output, dec_mask, enc_dec_mask, training)
 
-        logits = self.embed.attend(dec_output)
-        logits = logits / jnp.sqrt(self.vocab_size)
+        # logits = self.embed.attend(dec_output)
+        # logits = logits / jnp.sqrt(self.vocab_size)
+        logits = self.head(dec_output)
         return logits
 
 
