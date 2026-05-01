@@ -18,12 +18,12 @@ def get_configs():
 
     model_config = ml_collections.ConfigDict(
         dict(
-            emb_dim = 128,
-            num_heads = 6,
-            d_proj = 128,
-            ff_d_inner_factor = 2, # ff_d_inner = ff_d_inner_factor * emb_dim
+            emb_dim = 512,
+            num_heads = 8,
+            d_proj = 64,
+            ff_d_inner_factor = 4, # ff_d_inner = ff_d_inner_factor * emb_dim
             dropout = 0.1,
-            num_blocks = 4,
+            num_blocks = 6,
         )
     )
 

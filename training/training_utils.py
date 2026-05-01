@@ -120,7 +120,8 @@ def compute_masked_loss_and_accuracy(params: PyTree,
                       apply_fn: Any,
                       batch: Batch,
                       training: bool,
-                      dropout_rng_key: jax.Array | None) -> Tuple[PyTree, Metrics]:
+                      dropout_rng_key: jax.Array | None,
+                      label_smoothing = 0.1) -> Tuple[PyTree, Metrics]:
     with jax.named_scope("computing_logits"):
         logits = apply_fn(
             {'params': params},
@@ -132,8 +133,10 @@ def compute_masked_loss_and_accuracy(params: PyTree,
 
     with jax.named_scope("computing_loss"):
         dec_input_mask = (batch.dec_input > 0).astype(int)
-        loss = optax.softmax_cross_entropy_with_integer_labels(logits,
-                                                              labels=batch.labels)
+        vocab_size = logits.shape[-1]
+        one_hot = jax.nn.one_hot(batch.labels, vocab_size)
+        soft_labels = (1.0 - label_smoothing) * one_hot + label_smoothing / vocab_size
+        loss = optax.softmax_cross_entropy(logits, soft_labels)
         loss = loss * dec_input_mask
         loss_val = jnp.divide(jnp.sum(loss), jnp.sum(dec_input_mask))
 
@@ -188,7 +191,8 @@ def eval_step(params: PyTree,
                                                             apply_fn,
                                                             batch, 
                                                             training=False, 
-                                                            dropout_rng_key=None)
+                                                            dropout_rng_key=None,
+                                                            label_smoothing = 0.0)
     if metrics is None:
         new_metrics = val_step_metrics
     else:

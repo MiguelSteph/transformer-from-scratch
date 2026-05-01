@@ -29,7 +29,8 @@ class PositionalEncoding(nn.Module):
         inputs -- the embeddings. The shape of X is (batch_size, max_seq_len, emb_dim)
         """
         seq_len = inputs.shape[1]
-        x = inputs + self.pos_encodings[:, :seq_len]
+        x = inputs * jnp.sqrt(self.emb_dim)
+        x = x + self.pos_encodings[:, :seq_len]
         return x
 
 
@@ -107,7 +108,7 @@ class MultiHeadAttentionModule(nn.Module):
         k_tr = jnp.matrix_transpose(k) # k_tr is now of shape (batch_size, num_heads, d_k, kv_seq_len)
         q_k_tr = jnp.matmul(q, k_tr)
         logits = q_k_tr / jnp.sqrt(d_k)
-        logits = jnp.where(mask == 0, jnp.finfo(jnp.float32).min, logits)
+        logits = jnp.where(mask == 0, -1e9, logits)
         attention = nn.softmax(logits, axis=-1)
         values = jnp.matmul(attention, v)
         return values
@@ -210,8 +211,7 @@ class TransformerModule(nn.Module):
     max_seq_len: int # Maximum sequence length
 
     def setup(self):
-        self.embed = nn.Embed(self.vocab_size, self.emb_dim, 
-                              embedding_init=nn.initializers.normal(stddev=1.0))
+        self.embed = nn.Embed(self.vocab_size, self.emb_dim)
         self.pos_embed = PositionalEncoding(self.emb_dim, self.max_seq_len)
         self.encoders = [EncoderBlockModule(self.ff_d_inner, self.emb_dim,
                                             self.dropout, self.num_heads,
@@ -221,7 +221,6 @@ class TransformerModule(nn.Module):
                                             self.dropout, self.num_heads,
                                             self.d_proj)
                          for i in range(self.num_blocks)]
-        self.norm = nn.LayerNorm()
         self.head = nn.Dense(self.vocab_size, 
                              kernel_init=nn.initializers.xavier_uniform(),
                              bias_init=nn.initializers.normal(stddev=1e-6))
