@@ -86,19 +86,36 @@ def get_serialized_examples(args) -> str:
     serialized_examples = []
     de_inputs = samples["de"]
     en_inputs = samples["en"]
+
+    de_pad_encodings = de_tokenizer.encode('<|pad|>').ids
+    en_pad_encodings = en_tokenizer.encode('<|pad|>').ids
+    en_start_of_texts = en_tokenizer.encode('<|startoftext|>').ids
+    en_end_of_texts = en_tokenizer.encode('<|endoftext|>').ids
+
+    assert de_pad_encodings.shape[0] == 1, "Incorrect de_pad_encodings shape"
+    assert en_pad_encodings.shape[0] == 1, "Incorrect en_pad_encodings shape"
+    assert en_start_of_texts.shape[0] == 1, "Incorrect en_start_of_texts shape"
+    assert en_end_of_texts.shape[0] == 1, "Incorrect en_end_of_texts shape"
+
+    de_pad_encoding = de_pad_encodings[0]
+    en_pad_encoding = en_pad_encoding[0]
+    en_start_of_text = en_start_of_text[0]
+    en_end_of_text = en_end_of_text[0]
+
     for index in range(de_inputs.shape[0]):
         de_input = de_inputs[index].decode("utf-8").strip()
         en_input = en_inputs[index].decode("utf-8").strip()
         de_input_tokens = de_tokenizer.encode(de_input).ids
-        en_input_tokens = en_tokenizer.encode('<|startoftext|>' + en_input).ids
-        en_output_tokens = en_tokenizer.encode(en_input + '<|endoftext|>').ids
+        raw_en_tokens = en_tokenizer.encode(en_input).ids
+        en_input_tokens = np.concatenate(([en_start_of_text], raw_en_tokens))
+        en_output_tokens = np.concatenate((raw_en_tokens, [en_end_of_text]))
 
         if len(de_input_tokens) > max_seq_len or len(en_input_tokens) > max_seq_len:
             continue
 
-        de_input_tokens_with_padding = np.concatenate((de_input_tokens, np.full(max_seq_len - len(de_input_tokens), 0)))
-        en_input_tokens_with_padding = np.concatenate((en_input_tokens, np.full(max_seq_len - len(en_input_tokens), 0)))
-        en_output_tokens_with_padding = np.concatenate((en_output_tokens, np.full(max_seq_len - len(en_output_tokens), 0)))
+        de_input_tokens_with_padding = np.concatenate((de_input_tokens, np.full(max_seq_len - len(de_input_tokens), de_pad_encoding)))
+        en_input_tokens_with_padding = np.concatenate((en_input_tokens, np.full(max_seq_len - len(en_input_tokens), en_pad_encoding)))
+        en_output_tokens_with_padding = np.concatenate((en_output_tokens, np.full(max_seq_len - len(en_output_tokens), en_pad_encoding)))
 
         serialized_examples.append(serialized_example(de_input_tokens_with_padding,
                                     en_input_tokens_with_padding,
