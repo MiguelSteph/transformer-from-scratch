@@ -31,7 +31,7 @@ class PositionalEncoding(nn.Module):
         """
         seq_len = inputs.shape[1]
         # x = inputs * jnp.sqrt(self.emb_dim)
-        x = x + self.pos_encodings[:, :seq_len]
+        x = inputs + self.pos_encodings[:, :seq_len]
         x = self.norm(x)
         return x
 
