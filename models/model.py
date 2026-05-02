@@ -21,6 +21,7 @@ class PositionalEncoding(nn.Module):
         internal_pos_encodings[:, 1::2] = np.cos(p / div_term)
         internal_pos_encodings = internal_pos_encodings[None]
         self.pos_encodings = jnp.array(internal_pos_encodings)
+        self.norm = nn.LayerNorm()
 
     def __call__(self, inputs):
         """Adds the positional encodings to the input and returns it.
@@ -29,8 +30,9 @@ class PositionalEncoding(nn.Module):
         inputs -- the embeddings. The shape of X is (batch_size, max_seq_len, emb_dim)
         """
         seq_len = inputs.shape[1]
-        x = inputs * jnp.sqrt(self.emb_dim)
+        # x = inputs * jnp.sqrt(self.emb_dim)
         x = x + self.pos_encodings[:, :seq_len]
+        x = self.norm(x)
         return x
 
 
@@ -43,18 +45,22 @@ class MultiHeadAttentionModule(nn.Module):
     d_v_proj: int # Projection dimension of the value
 
     def setup(self):
-        self.k_proj = nn.Dense(self.num_heads * self.d_k_proj,
-                               kernel_init=nn.initializers.xavier_uniform(),
-                               use_bias=False)
-        self.v_proj = nn.Dense(self.num_heads * self.d_v_proj,
-                               kernel_init=nn.initializers.xavier_uniform(),
-                               use_bias=False)
-        self.q_proj = nn.Dense(self.num_heads * self.d_k_proj,
-                               kernel_init=nn.initializers.xavier_uniform(),
-                               use_bias=False)
-        self.proj_back = nn.Dense(self.d_q,
-                                 kernel_init=nn.initializers.xavier_uniform(),
-                                 use_bias=False)
+        # self.k_proj = nn.Dense(self.num_heads * self.d_k_proj,
+        #                        kernel_init=nn.initializers.xavier_uniform(),
+        #                        use_bias=False)
+        # self.v_proj = nn.Dense(self.num_heads * self.d_v_proj,
+        #                        kernel_init=nn.initializers.xavier_uniform(),
+        #                        use_bias=False)
+        # self.q_proj = nn.Dense(self.num_heads * self.d_k_proj,
+        #                        kernel_init=nn.initializers.xavier_uniform(),
+        #                        use_bias=False)
+        # self.proj_back = nn.Dense(self.d_q,
+        #                          kernel_init=nn.initializers.xavier_uniform(),
+        #                          use_bias=False)
+        self.k_proj = nn.Dense(self.num_heads * self.d_k_proj)
+        self.v_proj = nn.Dense(self.num_heads * self.d_v_proj)
+        self.q_proj = nn.Dense(self.num_heads * self.d_k_proj)
+        self.proj_back = nn.Dense(self.d_q)
 
 
     def __call__(self, k, v, q, mask=None):
@@ -224,7 +230,6 @@ class TransformerModule(nn.Module):
         # self.head = nn.Dense(self.vocab_size, 
         #                      kernel_init=nn.initializers.xavier_uniform(),
         #                      bias_init=nn.initializers.normal(stddev=1e-6))
-        self.norm = nn.LayerNorm()
 
 
     def __call__(self, enc_x, dec_x, training=False):
@@ -238,7 +243,6 @@ class TransformerModule(nn.Module):
         with jax.named_scope("encoder"):
             enc_output = self.embed(enc_x)
             enc_output = self.pos_embed(enc_output)
-            enc_output = self.norm(enc_output)
             for i in range(self.num_blocks):
                 enc_output = self.encoders[i](enc_output, enc_mask, training)
 
@@ -255,7 +259,6 @@ class TransformerModule(nn.Module):
         with jax.named_scope("decoder"):
             dec_output = self.embed(dec_x)
             dec_output = self.pos_embed(dec_output)
-            dec_output = self.norm(dec_output)
             for i in range(self.num_blocks):
                 dec_output = self.decoders[i](dec_output, enc_output, dec_mask, enc_dec_mask, training)
 

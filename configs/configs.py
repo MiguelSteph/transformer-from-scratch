@@ -23,7 +23,7 @@ def get_configs():
             d_proj = 32,
             ff_d_inner_factor = 4, # ff_d_inner = ff_d_inner_factor * emb_dim
             dropout = 0.1,
-            num_blocks = 6,
+            num_blocks = 4,
         )
     )
 
