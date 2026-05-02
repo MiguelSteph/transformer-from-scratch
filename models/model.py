@@ -224,6 +224,8 @@ class TransformerModule(nn.Module):
         # self.head = nn.Dense(self.vocab_size, 
         #                      kernel_init=nn.initializers.xavier_uniform(),
         #                      bias_init=nn.initializers.normal(stddev=1e-6))
+        self.enc_norm = nn.LayerNorm()
+        self.dec_norm = nn.LayerNorm()
 
 
     def __call__(self, enc_x, dec_x, training=False):
@@ -237,6 +239,7 @@ class TransformerModule(nn.Module):
         with jax.named_scope("encoder"):
             enc_output = self.embed(enc_x)
             enc_output = self.pos_embed(enc_output)
+            enc_output = self.enc_norm(enc_output)
             for i in range(self.num_blocks):
                 enc_output = self.encoders[i](enc_output, enc_mask, training)
 
@@ -253,6 +256,7 @@ class TransformerModule(nn.Module):
         with jax.named_scope("decoder"):
             dec_output = self.embed(dec_x)
             dec_output = self.pos_embed(dec_output)
+            dec_output = self.dec_norm(dec_output)
             for i in range(self.num_blocks):
                 dec_output = self.decoders[i](dec_output, enc_output, dec_mask, enc_dec_mask, training)
 
