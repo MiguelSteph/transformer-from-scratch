@@ -215,9 +215,12 @@ class TransformerModule(nn.Module):
     d_proj: int # Key, Value and query projection dimension
     vocab_size: int
     max_seq_len: int # Maximum sequence length
+    enc_pad_id: int
+    dec_pad_id: int
 
     def setup(self):
-        self.embed = nn.Embed(self.vocab_size, self.emb_dim)
+        self.enc_embed = nn.Embed(self.vocab_size, self.emb_dim)
+        self.dec_embed = nn.Embed(self.vocab_size, self.emb_dim)
         self.pos_embed = PositionalEncoding(self.emb_dim, self.max_seq_len)
         self.encoders = [EncoderBlockModule(self.ff_d_inner, self.emb_dim,
                                             self.dropout, self.num_heads,
@@ -238,10 +241,10 @@ class TransformerModule(nn.Module):
 
 
     def encode(self, enc_x, training=False):
-        enc_mask = nn.make_attention_mask(enc_x > 0, enc_x > 0)
+        enc_mask = nn.make_attention_mask(enc_x != self.enc_pad_id, enc_x != self.enc_pad_id)
 
         with jax.named_scope("encoder"):
-            enc_output = self.embed(enc_x)
+            enc_output = self.enc_embed(enc_x)
             enc_output = self.pos_embed(enc_output)
             for i in range(self.num_blocks):
                 enc_output = self.encoders[i](enc_output, enc_mask, training)
@@ -251,25 +254,25 @@ class TransformerModule(nn.Module):
 
     def decode(self, enc_x, dec_x, enc_output, training=False):
         dec_mask = nn.combine_masks(
-          nn.make_attention_mask(dec_x > 0, dec_x > 0),
+          nn.make_attention_mask(dec_x != self.dec_pad_id, dec_x != self.dec_pad_id),
           nn.make_causal_mask(dec_x),
         )
-        enc_dec_mask = nn.make_attention_mask(dec_x > 0, enc_x > 0)
+        enc_dec_mask = nn.make_attention_mask(dec_x != self.dec_pad_id, enc_x != self.enc_pad_id)
 
         with jax.named_scope("decoder"):
-            dec_output = self.embed(dec_x)
+            dec_output = self.dec_embed(dec_x)
             dec_output = self.pos_embed(dec_output)
             for i in range(self.num_blocks):
                 dec_output = self.decoders[i](dec_output, enc_output, dec_mask, enc_dec_mask, training)
 
-        logits = self.embed.attend(dec_output)
+        logits = self.dec_embed.attend(dec_output)
         # logits = logits / jnp.sqrt(self.vocab_size)
         # logits = self.head(dec_output)
         return logits
 
 
 
-def create_transformer_module(config: ml_collections.ConfigDict) -> TransformerModule:
+def create_transformer_module(config: ml_collections.ConfigDict, enc_pad_id: int, dec_pad_id: int) -> TransformerModule:
     return TransformerModule(
           num_blocks=config.model.num_blocks,
           ff_d_inner=config.model.ff_d_inner_factor * config.model.emb_dim,
@@ -279,4 +282,6 @@ def create_transformer_module(config: ml_collections.ConfigDict) -> TransformerM
           d_proj=config.model.d_proj,
           vocab_size=config.data.vocab_size,
           max_seq_len=config.data.max_seq_len,
+          enc_pad_id=enc_pad_id,
+          dec_pad_id=dec_pad_id,
         )

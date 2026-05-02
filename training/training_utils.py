@@ -40,6 +40,7 @@ PyTree = Any
 
 class TrainState(train_state.TrainState):
     dropout_key: jax.Array
+    dec_pad_id: int
 
 
 def generate_random_batch(init_prng: jax.Array,
@@ -121,6 +122,7 @@ def compute_masked_loss_and_accuracy(params: PyTree,
                       batch: Batch,
                       training: bool,
                       dropout_rng_key: jax.Array | None,
+                      dec_pad_id: int,
                       label_smoothing = 0.1) -> Tuple[PyTree, Metrics]:
     with jax.named_scope("computing_logits"):
         logits = apply_fn(
@@ -132,7 +134,7 @@ def compute_masked_loss_and_accuracy(params: PyTree,
         )
 
     with jax.named_scope("computing_loss"):
-        dec_input_mask = (batch.dec_input > 0).astype(int)
+        dec_input_mask = (batch.dec_input != dec_pad_id).astype(int)
         vocab_size = logits.shape[-1]
         one_hot = jax.nn.one_hot(batch.labels, vocab_size)
         soft_labels = (1.0 - label_smoothing) * one_hot + label_smoothing / vocab_size
@@ -166,7 +168,8 @@ def train_step(state: TrainState,
                                                     state.apply_fn,
                                                     batch,
                                                     training=True,
-                                                    dropout_rng_key=dropout_rng_key,)
+                                                    dropout_rng_key=dropout_rng_key,
+                                                    dec_pad_id=state.dec_pad_id,)
     new_state = state.apply_gradients(grads=grads)
     if metrics is None:
         new_metrics = train_step_metrics
@@ -192,6 +195,7 @@ def eval_step(params: PyTree,
                                                             batch, 
                                                             training=False, 
                                                             dropout_rng_key=None,
+                                                            dec_pad_id=state.dec_pad_id,
                                                             label_smoothing = 0.0)
     if metrics is None:
         new_metrics = val_step_metrics
@@ -201,7 +205,7 @@ def eval_step(params: PyTree,
 
 
 
-def create_train_state(model: nn.Module, config: ml_collections.ConfigDict, init_prng_key: jax.Array):
+def create_train_state(model: nn.Module, config: ml_collections.ConfigDict, init_prng_key: jax.Array, dec_pad_id: int):
     param_init_key_1, param_init_key_2, param_init_key_3, dropout_key = jax.random.split(init_prng_key, 4)
     sample_enc_x = jax.random.choice(param_init_key_1, config.data.vocab_size, (1, config.data.max_seq_len))
     sample_dec_x = jax.random.choice(param_init_key_2, config.data.vocab_size, (1, config.data.max_seq_len))
@@ -219,6 +223,7 @@ def create_train_state(model: nn.Module, config: ml_collections.ConfigDict, init
         params = variables['params'],
         tx = optax.adam(scheduler),
         dropout_key = dropout_key,
+        dec_pad_id = dec_pad_id,
     )
 
 
@@ -227,11 +232,12 @@ def train_and_evaluate(model: nn.Module,
                        init_prng: jax.Array,
                        train_ds: tf.data.Dataset,
                        validation_ds: tf.data.Dataset,
-                       log_dir_prefix: str | None) -> TrainState:
+                       log_dir_prefix: str | None,
+                       dec_pad_id: int) -> TrainState:
     train_ds_iterator = get_dataset_iterator(train_ds,
                                              config.data.batch_size,
                                              is_infinite=True)
-    train_state = create_train_state(model, config, init_prng)
+    train_state = create_train_state(model, config, init_prng, dec_pad_id)
 
     # Create the checkpoint manager
     ckp_options = ocp.CheckpointManagerOptions(max_to_keep=1,
