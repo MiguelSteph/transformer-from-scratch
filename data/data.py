@@ -49,15 +49,22 @@ def build_and_save_tokenizer_models() -> None:
     full_ds = train_ds.concatenate(validation_ds).concatenate(test_ds)
     de_data = full_ds.map(lambda x: x["de"], num_parallel_calls=tf.data.AUTOTUNE)
     en_data = full_ds.map(lambda x: x["en"], num_parallel_calls=tf.data.AUTOTUNE)
-    all_data = tf.data.Dataset.sample_from_datasets([de_data, en_data])
 
-    # Buiding tokenizer
-    print(f"--- Starting Tokenizer ---")
-    build_and_save_tokenizer(dataset=all_data,
+    # German tokenizer
+    print(f"--- Starting German tokenizer ---")
+    build_and_save_tokenizer(dataset=de_data,
                             vocab_size=config.data.vocab_size,
-                            tokenizer_path=config.data.tokenizer_model_path,
+                            tokenizer_path=config.data.de_tokenizer_model_path,
                             special_tokens=list(config.data.special_tokens))
-    print(f"--- Tokenizer built and saved ---")
+    print(f"--- German tokenizer built and saved ---")
+
+    # English tokenizer
+    print(f"--- Starting English tokenizer ---")
+    build_and_save_tokenizer(dataset=en_data,
+                            vocab_size=config.data.vocab_size,
+                            tokenizer_path=config.data.en_tokenizer_model_path,
+                            special_tokens=list(config.data.special_tokens))
+    print(f"--- English tokenizer built and saved ---")
 
 
 def serialized_example(de_input_tokens: list[float],

@@ -3,7 +3,7 @@ import ml_collections
 def get_configs():
     data_config = ml_collections.ConfigDict(
         dict(
-            special_tokens = ['<|startoftext|>','<|endoftext|>'],
+            special_tokens = ['<|pad|>', '<|startoftext|>', '<|endoftext|>'],
             de_tokenizer_model_path = 'de_tokenizer_20_000_vocab_size_model',
             en_tokenizer_model_path = 'en_tokenizer_20_000_vocab_size_model',
             train_ds_path = 'preprocessed_data/train.tfrecord',
