@@ -189,13 +189,14 @@ def train_step(state: TrainState,
 def eval_step(params: PyTree,
               apply_fn: Any,
               metrics: Metrics | None,
-              batch: Batch) -> Metrics:
+              batch: Batch,
+              dec_pad_id: int) -> Metrics:
     _, val_step_metrics = compute_masked_loss_and_accuracy(params,
                                                             apply_fn,
                                                             batch, 
                                                             training=False, 
                                                             dropout_rng_key=None,
-                                                            dec_pad_id=state.dec_pad_id,
+                                                            dec_pad_id=dec_pad_id,
                                                             label_smoothing = 0.0)
     if metrics is None:
         new_metrics = val_step_metrics
@@ -259,7 +260,7 @@ def train_and_evaluate(model: nn.Module,
                                      config.data.max_seq_len,
                                      config.data.vocab_size)
     _, train_metrics_shapes = jax.eval_shape(train_step, train_state, None, sample_batch)
-    val_metrics_shapes = jax.eval_shape(eval_step, train_state.params, train_state.apply_fn, None, sample_batch)
+    val_metrics_shapes = jax.eval_shape(eval_step, train_state.params, train_state.apply_fn, None, sample_batch, dec_pad_id)
 
     for epoch in range(config.optimizer.training_epochs):
         train_metrics = jax.tree.map(lambda x: jnp.zeros(x.shape, dtype=x.dtype), train_metrics_shapes)
@@ -276,7 +277,7 @@ def train_and_evaluate(model: nn.Module,
                                                     next(train_ds_iterator))
 
         for val_batch in validation_ds_iterator:
-            val_metrics = eval_step(train_state.params, train_state.apply_fn, val_metrics, val_batch)
+            val_metrics = eval_step(train_state.params, train_state.apply_fn, val_metrics, val_batch, dec_pad_id)
 
         train_final_loss = float(train_metrics['loss'].get_metric_val())
         train_final_accuracy = float(train_metrics['acc'].get_metric_val())
@@ -312,7 +313,8 @@ def train_and_evaluate(model: nn.Module,
 def evaluate_model(model_apply_fn: Any,
                    model_params: PyTree,
                    config: ml_collections.ConfigDict,
-                   test_ds: tf.data.Dataset) -> TrainState:
+                   test_ds: tf.data.Dataset,
+                   dec_pad_id: int) -> TrainState:
     test_ds_iterator = get_dataset_iterator(test_ds,
                                             config.data.batch_size,
                                             is_infinite=False)
@@ -322,11 +324,11 @@ def evaluate_model(model_apply_fn: Any,
                                      config.data.batch_size,
                                      config.data.max_seq_len,
                                      config.data.vocab_size)
-    eval_metrics_shapes = jax.eval_shape(eval_step, model_params, model_apply_fn, None, sample_batch)
+    eval_metrics_shapes = jax.eval_shape(eval_step, model_params, model_apply_fn, None, sample_batch, dec_pad_id)
     eval_metrics = jax.tree.map(lambda x: jnp.zeros(x.shape, dtype=x.dtype), eval_metrics_shapes)
 
     for eval_batch in test_ds_iterator:
-        eval_metrics = eval_step(model_params, model_apply_fn, eval_metrics, eval_batch)
+        eval_metrics = eval_step(model_params, model_apply_fn, eval_metrics, eval_batch, dec_pad_id)
 
     eval_final_loss = float(eval_metrics['loss'].get_metric_val())
     eval_final_accuracy = float(eval_metrics['acc'].get_metric_val())
