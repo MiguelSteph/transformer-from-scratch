@@ -98,9 +98,9 @@ def get_serialized_examples(args) -> str:
     assert len(en_end_of_texts) == 1, "Incorrect en_end_of_texts shape"
 
     de_pad_encoding = de_pad_encodings[0]
-    en_pad_encoding = en_pad_encoding[0]
-    en_start_of_text = en_start_of_text[0]
-    en_end_of_text = en_end_of_text[0]
+    en_pad_encoding = en_pad_encodings[0]
+    en_start_of_text = en_start_of_texts[0]
+    en_end_of_text = en_end_of_texts[0]
 
     for index in range(de_inputs.shape[0]):
         de_input = de_inputs[index].decode("utf-8").strip()
