@@ -92,10 +92,10 @@ def get_serialized_examples(args) -> str:
     en_start_of_texts = en_tokenizer.encode('<|startoftext|>').ids
     en_end_of_texts = en_tokenizer.encode('<|endoftext|>').ids
 
-    assert de_pad_encodings.shape[0] == 1, "Incorrect de_pad_encodings shape"
-    assert en_pad_encodings.shape[0] == 1, "Incorrect en_pad_encodings shape"
-    assert en_start_of_texts.shape[0] == 1, "Incorrect en_start_of_texts shape"
-    assert en_end_of_texts.shape[0] == 1, "Incorrect en_end_of_texts shape"
+    assert len(de_pad_encodings) == 1, "Incorrect de_pad_encodings shape"
+    assert len(en_pad_encodings) == 1, "Incorrect en_pad_encodings shape"
+    assert len(en_start_of_texts) == 1, "Incorrect en_start_of_texts shape"
+    assert len(en_end_of_texts) == 1, "Incorrect en_end_of_texts shape"
 
     de_pad_encoding = de_pad_encodings[0]
     en_pad_encoding = en_pad_encoding[0]
