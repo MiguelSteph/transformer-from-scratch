@@ -1,7 +1,6 @@
 import os
 import numpy as np
 import tensorflow as tf
-# from tensorflow.train import Int64List, Features, Feature, Example
 import tensorflow_datasets as tfds
 from tokenizers import ByteLevelBPETokenizer
 from pathlib import Path

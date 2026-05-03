@@ -269,7 +269,6 @@ def train_and_evaluate(model: nn.Module,
                                                       config.data.batch_size,
                                                       is_infinite=False)
 
-        # logging.info(f"Epoch {epoch + 1}")
         print(f"Epoch {epoch + 1}")
         for _ in tqdm(range(config.optimizer.steps_per_epochs)):
             train_state, train_metrics = train_step(train_state,
@@ -301,8 +300,6 @@ def train_and_evaluate(model: nn.Module,
             tf.summary.scalar('loss', val_final_loss, step=epoch)
             tf.summary.scalar('accuracy', val_final_accuracy, step=epoch)
 
-        # logging.info(f"Training:    Loss: {train_final_loss}    Accuracy: {train_final_accuracy}")
-        # logging.info(f"Validation:  Loss: {val_final_loss}    Accuracy: {val_final_accuracy}")
         print(f"Training:    Loss: {train_final_loss}    Accuracy: {train_final_accuracy}")
         print(f"Validation:  Loss: {val_final_loss}    Accuracy: {val_final_accuracy}")
 

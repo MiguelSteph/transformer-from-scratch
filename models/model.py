@@ -30,7 +30,6 @@ class PositionalEncoding(nn.Module):
         inputs -- the embeddings. The shape of X is (batch_size, max_seq_len, emb_dim)
         """
         seq_len = inputs.shape[1]
-        # x = inputs * jnp.sqrt(self.emb_dim)
         x = inputs + self.pos_encodings[:, :seq_len]
         x = self.norm(x)
         return x
@@ -45,18 +44,6 @@ class MultiHeadAttentionModule(nn.Module):
     d_v_proj: int # Projection dimension of the value
 
     def setup(self):
-        # self.k_proj = nn.Dense(self.num_heads * self.d_k_proj,
-        #                        kernel_init=nn.initializers.xavier_uniform(),
-        #                        use_bias=False)
-        # self.v_proj = nn.Dense(self.num_heads * self.d_v_proj,
-        #                        kernel_init=nn.initializers.xavier_uniform(),
-        #                        use_bias=False)
-        # self.q_proj = nn.Dense(self.num_heads * self.d_k_proj,
-        #                        kernel_init=nn.initializers.xavier_uniform(),
-        #                        use_bias=False)
-        # self.proj_back = nn.Dense(self.d_q,
-        #                          kernel_init=nn.initializers.xavier_uniform(),
-        #                          use_bias=False)
         self.k_proj = nn.Dense(self.num_heads * self.d_k_proj)
         self.v_proj = nn.Dense(self.num_heads * self.d_v_proj)
         self.q_proj = nn.Dense(self.num_heads * self.d_k_proj)
@@ -230,9 +217,6 @@ class TransformerModule(nn.Module):
                                             self.dropout, self.num_heads,
                                             self.d_proj)
                          for i in range(self.num_blocks)]
-        # self.head = nn.Dense(self.vocab_size, 
-        #                      kernel_init=nn.initializers.xavier_uniform(),
-        #                      bias_init=nn.initializers.normal(stddev=1e-6))
 
 
     def __call__(self, enc_x, dec_x, training=False):
@@ -266,8 +250,6 @@ class TransformerModule(nn.Module):
                 dec_output = self.decoders[i](dec_output, enc_output, dec_mask, enc_dec_mask, training)
 
         logits = self.dec_embed.attend(dec_output)
-        # logits = logits / jnp.sqrt(self.vocab_size)
-        # logits = self.head(dec_output)
         return logits
 
 
