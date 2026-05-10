@@ -8,7 +8,7 @@ from flax import linen as nn
 from flax.training import train_state
 import optax
 import orbax.checkpoint as ocp
-from typing import Iterator, Any, Dict, Tuple
+from typing import Iterator, Any, Dict, Tuple, Sequence
 from collections.abc import Callable
 from dataclasses import dataclass
 from jax.sharding import Mesh
