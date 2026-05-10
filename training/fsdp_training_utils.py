@@ -267,36 +267,6 @@ def eval_step_fsdp(params: PyTree,
     return new_metrics
 
 
-def init_model(init_prng_key: jax.Array,
-              sample_enc_x: jax.Array,
-              sample_dec_x: jax.Array,
-              model_fspd: nn.Module,
-              optimizer: Any,
-              dec_pad_id: int):
-    model_init_key, dropout_key = jax.random.split(init_prng_key, 2)
-    variables = model_fspd.init({"params": model_init_key}, sample_enc_x, sample_dec_x)
-    params = variables.pop("params")
-
-    return TrainState.create(
-        apply_fn = model_fspd.apply,
-        params = params,
-        tx = optimizer,
-        dropout_key = dropout_key,
-        dec_pad_id = dec_pad_id,
-    )
-
-
-def _create_summary_writers(config: ml_collections.ConfigDict, 
-                         log_dir_prefix: str | None):
-    current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    prefix_path = current_time if log_dir_prefix is None else log_dir_prefix
-    train_log_dir = config.training_output.metric_path + '/' + prefix_path + '/train'
-    val_log_dir = config.training_output.metric_path + '/' + prefix_path + '/validation'
-    train_writer = tf.summary.create_file_writer(train_log_dir)
-    val_writer = tf.summary.create_file_writer(val_log_dir)
-    return train_writer, val_writer
-
-
 def get_train_step_fsdp_fn(mesh, state_fsdp_specs, data_axis_name):
     partial_train_step_fsdp_fn = functools.partial(train_step_fsdp,
                                                    data_axis_name=data_axis_name)
@@ -329,6 +299,36 @@ def get_eval_step_fsdp_fn(mesh, params_fsdp_specs, apply_fn, data_axis_name, dec
         donate_argnames=("metrics"),
     )
     return eval_step_fsdp_fn
+
+
+def init_model(init_prng_key: jax.Array,
+              sample_enc_x: jax.Array,
+              sample_dec_x: jax.Array,
+              model_fspd: nn.Module,
+              optimizer: Any,
+              dec_pad_id: int):
+    model_init_key, dropout_key = jax.random.split(init_prng_key, 2)
+    variables = model_fspd.init({"params": model_init_key}, sample_enc_x, sample_dec_x)
+    params = variables.pop("params")
+
+    return TrainState.create(
+        apply_fn = model_fspd.apply,
+        params = params,
+        tx = optimizer,
+        dropout_key = dropout_key,
+        dec_pad_id = dec_pad_id,
+    )
+
+
+def _create_summary_writers(config: ml_collections.ConfigDict, 
+                         log_dir_prefix: str | None):
+    current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    prefix_path = current_time if log_dir_prefix is None else log_dir_prefix
+    train_log_dir = config.training_output.metric_path + '/' + prefix_path + '/train'
+    val_log_dir = config.training_output.metric_path + '/' + prefix_path + '/validation'
+    train_writer = tf.summary.create_file_writer(train_log_dir)
+    val_writer = tf.summary.create_file_writer(val_log_dir)
+    return train_writer, val_writer
 
 
 def fsdp_init(model: nn.Module, mesh: Mesh, config: ml_collections.ConfigDict, dec_pad_id: int):
@@ -434,8 +434,13 @@ def train_and_evaluate(model: nn.Module,
         val_final_loss = float(val_metrics['loss'].get_metric_val())
         val_final_accuracy = float(val_metrics['acc'].get_metric_val())
 
+        state_to_save = jax.tree_util.tree_map(
+            lambda x: x.value if isinstance(x, nn.Partitioned) else x,
+            state,
+            is_leaf=lambda x: isinstance(x, nn.Partitioned)
+        )
         ckp_mngr.save(epoch,
-                      args=ocp.args.StandardSave(state),
+                      args=ocp.args.StandardSave(state_to_save),
                       metrics={
                           'acc': val_final_accuracy,
                           'loss': val_final_loss,

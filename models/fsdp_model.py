@@ -237,16 +237,26 @@ class TransformerModule(nn.Module):
     min_weight_size: int # min weight size from which we shard the params
 
     def setup(self):
+        RematEncoder = nn.remat(
+            EncoderBlockModule,
+            prevent_cse=False,
+            policy=jax.checkpoint_policies.dots_saveable,
+        )
+        RematDecoder = nn.remat(
+            DecoderBlockModule,
+            prevent_cse=False,
+            policy=jax.checkpoint_policies.dots_saveable,
+        )
         self.enc_embed = nn.Embed(self.vocab_size, 
                                   self.emb_dim)
         self.dec_embed = nn.Embed(self.vocab_size, 
                                   self.emb_dim)
         self.pos_embed = PositionalEncoding(self.emb_dim, self.max_seq_len)
-        self.encoders = [EncoderBlockModule(self.ff_d_inner, self.emb_dim,
+        self.encoders = [RematEncoder(self.ff_d_inner, self.emb_dim,
                                             self.dropout, self.num_heads,
                                             self.d_proj, self.data_axis_name, self.min_weight_size)
                          for i in range(self.num_blocks)]
-        self.decoders = [DecoderBlockModule(self.ff_d_inner, self.emb_dim,
+        self.decoders = [RematDecoder(self.ff_d_inner, self.emb_dim,
                                             self.dropout, self.num_heads,
                                             self.d_proj, self.data_axis_name, self.min_weight_size)
                          for i in range(self.num_blocks)]
