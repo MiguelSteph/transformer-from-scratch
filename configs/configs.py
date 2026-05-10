@@ -11,18 +11,18 @@ def get_configs():
             test_ds_path = 'preprocessed_data/test.tfrecord',
             vocab_size = 20_000,
             max_seq_len = 100,
-            batch_size = 32,
+            batch_size = 8, #32,
         )
     )
 
     model_config = ml_collections.ConfigDict(
         dict(
-            emb_dim = 256,
+            emb_dim = 512,
             num_heads = 8,
-            d_proj = 32,
+            d_proj = 64,
             ff_d_inner_factor = 4, # ff_d_inner = ff_d_inner_factor * emb_dim
             dropout = 0.1,
-            num_blocks = 4,
+            num_blocks = 6,
         )
     )
 
@@ -43,10 +43,18 @@ def get_configs():
         )
     )
 
+    fsdp_config = ml_collections.ConfigDict(
+        dict(
+            data_axis = 'data',
+            min_weight_size = 2**8,
+        )
+    )
+
     config = ml_collections.ConfigDict()
     config.data = data_config
     config.model = model_config
     config.optimizer = optimizer_config
     config.training_output = training_output_config
-    
+    config.fsdp = fsdp_config
+
     return ml_collections.FrozenConfigDict(config)
