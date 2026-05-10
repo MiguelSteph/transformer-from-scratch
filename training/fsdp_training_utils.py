@@ -99,7 +99,7 @@ def sync_gradients(
             # Parameters are replicated over all axes.
             return jax.lax.pmean(g, axis_name=axis_names)
 
-    return jax.tree_map(sync_grad, grads, is_leaf=lambda x: isinstance(x, nn.Partitioned))
+    return jax.tree.map(sync_grad, grads, is_leaf=lambda x: isinstance(x, nn.Partitioned))
 
 
 def generate_random_batch(init_prng: jax.Array,
@@ -230,7 +230,7 @@ def train_step_fsdp(state: TrainState,
     new_state = state.apply_gradients(grads=grads)
 
     with jax.named_scope("sync_metrics"):
-        train_step_metrics = jax.tree_map(
+        train_step_metrics = jax.tree.map(
             lambda x: jax.lax.psum(x, axis_name=data_axis_name), train_step_metrics
         )
 
@@ -256,7 +256,7 @@ def eval_step_fsdp(params: PyTree,
                                                            dec_pad_id=dec_pad_id,
                                                            label_smoothing = 0.0)
     with jax.named_scope("sync_metrics"):
-        val_step_metrics = jax.tree_map(
+        val_step_metrics = jax.tree.map(
             lambda x: jax.lax.psum(x, axis_name=data_axis_name), val_step_metrics
         )
     
@@ -297,16 +297,15 @@ def _create_summary_writers(config: ml_collections.ConfigDict,
     return train_writer, val_writer
 
 
-def get_train_step_fsdp_fn(mesh, train_state_fsdp_specs, data_axis_name):
+def get_train_step_fsdp_fn(mesh, state_fsdp_specs, data_axis_name):
+    partial_train_step_fsdp_fn = functools.partial(train_step_fsdp,
+                                                   data_axis_name=data_axis_name)
     train_step_fsdp_fn = jax.jit(
         jax.shard_map(
-            functools.partial(
-                train_step_fsdp,
-                data_axis_name=data_axis_name
-            ),
-            mesh,
-            in_specs=(train_state_fsdp_specs, P(), P(data_axis_name)),
-            out_specs=(train_state_fsdp_specs, P())
+            partial_train_step_fsdp_fn,
+            mesh=mesh,
+            in_specs=(state_fsdp_specs, P(), P(data_axis_name)),
+            out_specs=(state_fsdp_specs, P())
         ),
         donate_argnames=("state", "metrics"),
     )
@@ -314,15 +313,16 @@ def get_train_step_fsdp_fn(mesh, train_state_fsdp_specs, data_axis_name):
 
 
 def get_eval_step_fsdp_fn(mesh, params_fsdp_specs, apply_fn, data_axis_name, dec_pad_id):
+    partial_eval_step_fsdp_fn = functools.partial(
+        eval_step_fsdp, 
+        apply_fn=apply_fn, 
+        data_axis_name=data_axis_name, 
+        dec_pad_id=dec_pad_id
+        )
     eval_step_fsdp_fn = jax.jit(
         jax.shard_map(
-            functools.partial(
-                eval_step_fsdp,
-                apply_fn=apply_fn,
-                data_axis_name=data_axis_name,
-                dec_pad_id=dec_pad_id,
-            ),
-            mesh,
+            partial_eval_step_fsdp_fn,
+            mesh=mesh,
             in_specs=(params_fsdp_specs, P(), P(data_axis_name)),
             out_specs=P()
         ),
@@ -369,25 +369,25 @@ def fsdp_init(model: nn.Module, mesh: Mesh, config: ml_collections.ConfigDict, d
             out_specs=state_fsdp_specs,
         ))
 
-    train_state = init_model_fn(init_rng, sample_batch.enc_input, sample_batch.dec_input)
-    return train_state, state_fsdp_specs
+    state = init_model_fn(init_rng, sample_batch.enc_input, sample_batch.dec_input)
+    return state, state_fsdp_specs
 
 
 def train_and_evaluate(model: nn.Module, 
                        mesh: Mesh,
-                       train_state: TrainState,
-                       train_state_fsdp_specs: P,
+                       state: TrainState,
+                       state_fsdp_specs: P,
                        config: ml_collections.ConfigDict,
                        init_prng: jax.Array,
                        train_ds: tf.data.Dataset,
                        validation_ds: tf.data.Dataset,
                        log_dir_prefix: str | None,
                        dec_pad_id: int) -> TrainState:
-    train_step_fsdp_fn = get_train_step_fsdp_fn(mesh, train_state_fsdp_specs, 
+    train_step_fsdp_fn = get_train_step_fsdp_fn(mesh, state_fsdp_specs, 
                                                 config.fsdp.data_axis)
 
-    eval_step_fsdp_fn = get_eval_step_fsdp_fn(mesh, train_state_fsdp_specs.params, 
-                                              train_state.apply_fn, 
+    eval_step_fsdp_fn = get_eval_step_fsdp_fn(mesh, state_fsdp_specs.params, 
+                                              state.apply_fn, 
                                               config.fsdp.data_axis, 
                                               dec_pad_id)
 
@@ -409,8 +409,8 @@ def train_and_evaluate(model: nn.Module,
                                          config.data.batch_size,
                                          config.data.max_seq_len,
                                          config.data.vocab_size)
-    _, train_metrics_shapes = jax.eval_shape(train_step_fsdp_fn, train_state, None, sample_batch, config.fsdp.data_axis)
-    val_metrics_shapes = jax.eval_shape(eval_step_fsdp_fn, train_state.params, None, sample_batch, train_state.apply_fn, config.fsdp.data_axis, dec_pad_id)
+    _, train_metrics_shapes = jax.eval_shape(train_step_fsdp_fn, state, None, sample_batch)
+    val_metrics_shapes = jax.eval_shape(eval_step_fsdp_fn, state.params, None, sample_batch)
 
     for epoch in range(config.optimizer.training_epochs):
         train_metrics = jax.tree.map(lambda x: jnp.zeros(x.shape, dtype=x.dtype), train_metrics_shapes)
@@ -421,13 +421,12 @@ def train_and_evaluate(model: nn.Module,
 
         print(f"Epoch {epoch + 1}")
         for _ in tqdm(range(config.optimizer.steps_per_epochs)):
-            train_state, train_metrics = train_step_fsdp_fn(train_state,
+            state, train_metrics = train_step_fsdp_fn(state,
                                                     train_metrics,
-                                                    next(train_ds_iterator),
-                                                    config.fsdp.data_axis)
+                                                    next(train_ds_iterator))
 
         for val_batch in validation_ds_iterator:
-            val_metrics = eval_step_fsdp_fn(train_state.params, val_metrics, val_batch, train_state.apply_fn, config.fsdp.data_axis, dec_pad_id)
+            val_metrics = eval_step_fsdp_fn(state.params, val_metrics, val_batch)
 
         train_final_loss = float(train_metrics['loss'].get_metric_val())
         train_final_accuracy = float(train_metrics['acc'].get_metric_val())
@@ -436,7 +435,7 @@ def train_and_evaluate(model: nn.Module,
         val_final_accuracy = float(val_metrics['acc'].get_metric_val())
 
         ckp_mngr.save(epoch,
-                      args=ocp.args.StandardSave(train_state),
+                      args=ocp.args.StandardSave(state),
                       metrics={
                           'acc': val_final_accuracy,
                           'loss': val_final_loss,
@@ -455,7 +454,7 @@ def train_and_evaluate(model: nn.Module,
         print(f"Validation:  Loss: {val_final_loss}    Accuracy: {val_final_accuracy}")
 
     ckp_mngr.wait_until_finished()
-    return train_state
+    return state
 
 
 def evaluate_model(model_apply_fn: Any,
@@ -477,11 +476,11 @@ def evaluate_model(model_apply_fn: Any,
                                      config.data.batch_size,
                                      config.data.max_seq_len,
                                      config.data.vocab_size)
-    eval_metrics_shapes = jax.eval_shape(eval_step_fsdp_fn, model_params, None, sample_batch, model_apply_fn, config.fsdp.data_axis, dec_pad_id)
+    eval_metrics_shapes = jax.eval_shape(eval_step_fsdp_fn, model_params, None, sample_batch)
     eval_metrics = jax.tree.map(lambda x: jnp.zeros(x.shape, dtype=x.dtype), eval_metrics_shapes)
 
     for eval_batch in test_ds_iterator:
-        eval_metrics = eval_step_fsdp_fn(model_params, eval_metrics, eval_batch, model_apply_fn, config.fsdp.data_axis, dec_pad_id)
+        eval_metrics = eval_step_fsdp_fn(model_params, eval_metrics, eval_batch)
 
     eval_final_loss = float(eval_metrics['loss'].get_metric_val())
     eval_final_accuracy = float(eval_metrics['acc'].get_metric_val())
