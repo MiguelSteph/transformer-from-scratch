@@ -241,11 +241,13 @@ class TransformerModule(nn.Module):
             EncoderBlockModule,
             prevent_cse=False,
             policy=jax.checkpoint_policies.dots_saveable,
+            static_argnames=('training',),
         )
         RematDecoder = nn.remat(
             DecoderBlockModule,
             prevent_cse=False,
             policy=jax.checkpoint_policies.dots_saveable,
+            static_argnames=('training',),
         )
         self.enc_embed = nn.Embed(self.vocab_size, 
                                   self.emb_dim)
