@@ -465,13 +465,15 @@ def train_and_evaluate(model: nn.Module,
 def evaluate_model(model_apply_fn: Any,
                    model_params: PyTree,
                    params_fsdp_specs: Any,
+                   mesh: Mesh,
                    config: ml_collections.ConfigDict,
                    test_ds: tf.data.Dataset,
                    dec_pad_id: int) -> TrainState:
     test_ds_iterator = get_dataset_iterator(test_ds,
                                             config.data.batch_size,
                                             is_infinite=False)
-    eval_step_fsdp_fn = get_eval_step_fsdp_fn(params_fsdp_specs, 
+    eval_step_fsdp_fn = get_eval_step_fsdp_fn(mesh, 
+                                              params_fsdp_specs, 
                                               model_apply_fn, 
                                               config.fsdp.data_axis, 
                                               dec_pad_id)
