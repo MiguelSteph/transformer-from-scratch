@@ -11,7 +11,7 @@ def get_configs():
             test_ds_path = 'preprocessed_data/test.tfrecord',
             vocab_size = 20_000,
             max_seq_len = 100,
-            batch_size = 8, #32,
+            batch_size = 64,
         )
     )
 
@@ -30,8 +30,8 @@ def get_configs():
         dict(
             base_lr = 0.0001,
             warmup_epochs = 4,
-            training_epochs = 30,
-            steps_per_epochs = 15_000
+            training_epochs = 24,
+            steps_per_epochs = 30_000
         )
     )
 
