@@ -18,7 +18,7 @@ def get_inference_fsdp_fn(mesh, params_fsdp_specs, params, model, data_axis_name
     return functools.partial(inference_fn, {'params': params})
 
 
-def run_inference(seed_key, src_sentences, config, inference_fn, src_tokenizer, trg_tokenizer):
+def run_inference(seed_key, src_sentences, config, inference_fn, src_tokenizer, trg_tokenizer, top_k):
     batch_size = len(src_sentences)
     end_token_id = trg_tokenizer.encode('<|endoftext|>').ids[0]
     start_token_id = trg_tokenizer.encode('<|startoftext|>').ids[0]
@@ -59,7 +59,7 @@ def run_inference(seed_key, src_sentences, config, inference_fn, src_tokenizer, 
             # Logit at the last valid position predicts the next token
             token_logits = model_output[i][lengths[i] - 1]
             token_prob = jax.nn.softmax(token_logits)
-            values, indices = jax.lax.top_k(token_prob, 5)
+            values, indices = jax.lax.top_k(token_prob, top_k)
             output_token = jax.random.choice(seq_key, indices, p=values / values.sum())
 
             if output_token == end_token_id:
